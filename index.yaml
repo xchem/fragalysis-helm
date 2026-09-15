@@ -1,0 +1,40 @@
+apiVersion: v1
+entries:
+  fragalysis-stack:
+  - apiVersion: v2
+    created: "2026-09-15T10:21:36.925288302Z"
+    description: The Fragalysis Stack - a Django web application with its Celery worker
+      and beat Pods, PostgreSQL, pgBouncer, Redis and optional backups
+    digest: 15e3e2624ecad4c7ec464f1f49d4c4f4f63c251288c4a3c07c2a5c235a1b214e
+    home: https://github.com/xchem/fragalysis-helm
+    keywords:
+    - fragalysis
+    - xchem
+    name: fragalysis-stack
+    sources:
+    - https://github.com/xchem/fragalysis-helm
+    - https://github.com/xchem/fragalysis-stack
+    type: application
+    urls:
+    - https://github.com/xchem/fragalysis-helm/releases/download/fragalysis-stack-0.1.0/fragalysis-stack-0.1.0.tgz
+    version: 0.1.0
+  ta-authenticator:
+  - apiVersion: v2
+    appVersion: 1.4.4
+    created: "2026-09-15T10:21:37.154860839Z"
+    description: The Fragalysis (ISPyB) Target Access Authenticator - a service that
+      resolves a user's target access (proposals) for the Fragalysis Stack
+    digest: 5823820a6778fff46d9f1a9cbd668297e398f04f3af621445d301dfd8c2123a3
+    home: https://github.com/xchem/fragalysis-helm
+    keywords:
+    - fragalysis
+    - xchem
+    name: ta-authenticator
+    sources:
+    - https://github.com/xchem/fragalysis-helm
+    - https://github.com/xchem/fragalysis-ispyb-target-access-authenticator
+    type: application
+    urls:
+    - https://github.com/xchem/fragalysis-helm/releases/download/ta-authenticator-0.1.0/ta-authenticator-0.1.0.tgz
+    version: 0.1.0
+generated: "2026-09-15T10:21:37.154865989Z"
