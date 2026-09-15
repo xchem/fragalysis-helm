@@ -1,0 +1,143 @@
+{{- if .Values.stack.deploy }}
+{{- if lt (int .Values.stack.replicas) 1 }}
+{{- fail "stack.replicas must be greater than 0" }}
+{{- end }}
+---
+kind: StatefulSet
+apiVersion: apps/v1
+metadata:
+  name: stack
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "fragalysis-stack.labels" . | nindent 4 }}
+spec:
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      name: stack
+  serviceName: stack
+  replicas: {{ .Values.stack.replicas }}
+  template:
+    metadata:
+      name: stack
+      labels:
+        name: stack
+      {{- if eq (include "fragalysis-stack.stackImagePullPolicy" .) "Always" }}
+      annotations:
+        # A mutable tag may refer to a new image without the tag changing,
+        # so force a roll-out on every upgrade
+        fragalysis.xchem/deployed-at: {{ now | date "2006-01-02T15:04:05.000000Z07:00" | quote }}
+      {{- end }}
+    spec:
+      serviceAccountName: stack
+      affinity:
+        {{- include "fragalysis-stack.affinityApplicationFirst" . | nindent 8 }}
+
+      initContainers:
+      {{- if not .Values.database.host }}
+      {{- include "fragalysis-stack.waitForContainer" (dict "registry" .Values.busybox.registry "name" "database" "host" "database") | nindent 6 }}
+      {{- end }}
+      {{- if .Values.stack.waitForGraph }}
+      {{- include "fragalysis-stack.waitForContainer" (dict "registry" .Values.busybox.registry "name" "graph" "host" (required "graph.hostname must be set (or set stack.waitForGraph to false)" .Values.graph.hostname)) | nindent 6 }}
+      {{- end }}
+      {{- include "fragalysis-stack.waitForContainer" (dict "registry" .Values.busybox.registry "name" "redis" "host" "redis") | nindent 6 }}
+
+      containers:
+      - name: stack
+        image: {{ include "fragalysis-stack.stackImage" . | quote }}
+        imagePullPolicy: {{ include "fragalysis-stack.stackImagePullPolicy" . }}
+        terminationMessagePolicy: FallbackToLogsOnError
+        ports:
+        - containerPort: 80
+        resources:
+          {{- toYaml .Values.stack.resources | nindent 10 }}
+        # A seven-minute startup probe.
+        # The work done by a fresh stack is quite time-consuming.
+        startupProbe:
+          periodSeconds: 10
+          failureThreshold: 42
+          tcpSocket:
+            port: 80
+        livenessProbe:
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 1
+          tcpSocket:
+            port: 80
+        env:
+        {{- include "fragalysis-stack.commonEnv" . | nindent 8 }}
+        {{- include "fragalysis-stack.applicationEnv" . | nindent 8 }}
+        - name: STACK_CONCURRENCY
+          value: {{ .Values.stack.concurrency | quote }}
+        - name: AUTHENTICATE_UPLOAD
+          value: {{ ternary "True" "False" .Values.stack.authenticateUpload | quote }}
+        - name: ENABLE_SERVICE_STATUS
+          value: {{ .Values.stack.enableServiceStatus | quote }}
+        {{- if .Values.stack.cache.enabled }}
+        - name: CACHE_ENABLED
+          value: "yes"
+        {{- end }}
+        {{- with .Values.stack.cache.middlewareTimeoutMinutes }}
+        - name: CACHE_MIDDLEWARE_TIMEOUT_MINUTES
+          value: {{ . | quote }}
+        {{- end }}
+        {{- with .Values.stack.legacyUrl }}
+        - name: LEGACY_URL
+          value: {{ . | quote }}
+        {{- end }}
+        {{- with .Values.stack.targetWarningMessage }}
+        - name: TARGET_WARNING_MESSAGE
+          value: {{ . | quote }}
+        {{- end }}
+        {{- with .Values.stack.seeAlsoMessage }}
+        - name: SEE_ALSO_MESSAGE
+          value: {{ . | quote }}
+        {{- end }}
+        {{- with .Values.stack.documentationUrlFormatStrings.stack }}
+        - name: STACK_DOCUMENTATION_URL_FORMAT_STRING
+          value: {{ . | quote }}
+        {{- end }}
+        {{- with .Values.stack.documentationUrlFormatStrings.frontend }}
+        - name: FE_DOCUMENTATION_URL_FORMAT_STRING
+          value: {{ . | quote }}
+        {{- end }}
+        {{- with .Values.stack.documentationUrlFormatStrings.backend }}
+        - name: BE_DOCUMENTATION_URL_FORMAT_STRING
+          value: {{ . | quote }}
+        {{- end }}
+        {{- with .Values.stack.maxDownloadConcurrencyPercent }}
+        - name: MAX_DOWNLOAD_CONCURRENCY_PERCENT
+          value: {{ . | quote }}
+        {{- end }}
+        volumeMounts:
+        - name: media
+          mountPath: /code/media
+        - name: ephemeral
+          mountPath: /tmp
+        {{- if .Values.stack.logVolumeStorageClass }}
+        - name: log
+          mountPath: /code/logs
+        {{- end }}
+
+      volumes:
+      - name: media
+        persistentVolumeClaim:
+          claimName: media
+      - name: ephemeral
+        emptyDir:
+          sizeLimit: {{ .Values.stack.tmpVolumeSizeLimit }}
+  {{- with .Values.stack.logVolumeStorageClass }}
+
+  # A log volume for each StatefulSet replica.
+  volumeClaimTemplates:
+  - metadata:
+      name: log
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      storageClassName: {{ . | quote }}
+      resources:
+        requests:
+          storage: 200Mi
+  {{- end }}
+{{- end }}

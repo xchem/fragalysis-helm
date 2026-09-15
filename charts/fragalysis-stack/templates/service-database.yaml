@@ -1,0 +1,15 @@
+{{- if not .Values.database.host }}
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: database
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "fragalysis-stack.labels" . | nindent 4 }}
+spec:
+  selector:
+    name: database
+  ports:
+  - port: 5432
+{{- end }}

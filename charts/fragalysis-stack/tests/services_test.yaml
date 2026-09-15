@@ -1,0 +1,67 @@
+---
+suite: service account, services and metrics
+templates:
+- service-stack.yaml
+- serviceaccount.yaml
+- servicemonitor-stack.yaml
+release:
+  namespace: fragalysis
+tests:
+- it: creates the stack service account
+  template: serviceaccount.yaml
+  set:
+    stack.deploy: false
+  asserts:
+  - isKind:
+      of: ServiceAccount
+  - equal:
+      path: metadata.name
+      value: stack
+  - equal:
+      path: metadata.namespace
+      value: fragalysis
+
+- it: exposes the stack
+  template: service-stack.yaml
+  asserts:
+  - equal:
+      path: metadata.name
+      value: stack
+  - equal:
+      path: spec.selector
+      value:
+        name: stack
+  - equal:
+      path: spec.ports
+      value:
+      - name: http
+        port: 80
+
+- it: keeps the stack service when the stack is not deployed
+  template: service-stack.yaml
+  set:
+    stack.deploy: false
+  asserts:
+  - hasDocuments:
+      count: 1
+
+- it: has no metrics by default
+  template: servicemonitor-stack.yaml
+  asserts:
+  - hasDocuments:
+      count: 0
+
+- it: scrapes stack metrics when enabled
+  template: servicemonitor-stack.yaml
+  set:
+    stack.metrics.enabled: true
+  asserts:
+  - isKind:
+      of: ServiceMonitor
+  - equal:
+      path: metadata.name
+      value: fragalysis-stack
+  - equal:
+      path: spec.namespaceSelector.matchNames
+      value:
+      - fragalysis

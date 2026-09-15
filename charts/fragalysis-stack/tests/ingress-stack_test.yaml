@@ -1,0 +1,84 @@
+---
+suite: stack Ingress
+templates:
+- ingress-stack.yaml
+release:
+  namespace: fragalysis
+set:
+  ingress.hostname: fragalysis.example.com
+tests:
+- it: is not deployed without a hostname
+  set:
+    ingress.hostname: ""
+  asserts:
+  - hasDocuments:
+      count: 0
+
+- it: is kept when the stack is not deployed
+  set:
+    stack.deploy: false
+  asserts:
+  - hasDocuments:
+      count: 1
+
+- it: refuses an unknown ingress class
+  set:
+    ingress.className: haproxy
+  asserts:
+  - failedTemplate:
+      errorPattern: ingress.className must be 'nginx' or 'traefik'
+
+- it: routes the hostname to the stack using nginx
+  asserts:
+  - equal:
+      path: metadata.name
+      value: stack
+  - equal:
+      path: metadata.namespace
+      value: fragalysis
+  - equal:
+      path: spec.ingressClassName
+      value: nginx
+  - equal:
+      path: metadata.annotations
+      value:
+        nginx.ingress.kubernetes.io/rewrite-target: /
+        nginx.ingress.kubernetes.io/proxy-body-size: "0"
+        nginx.ingress.kubernetes.io/enable-cors: "true"
+  - equal:
+      path: spec.rules[0].host
+      value: fragalysis.example.com
+  - equal:
+      path: spec.rules[0].http.paths[0].backend.service
+      value:
+        name: stack
+        port:
+          name: http
+  - notExists:
+      path: spec.tls
+
+- it: has no annotations using traefik without a certificate
+  set:
+    ingress.className: traefik
+  asserts:
+  - equal:
+      path: spec.ingressClassName
+      value: traefik
+  - notExists:
+      path: metadata.annotations
+
+- it: requests a certificate from the issuer for the ingress class
+  set:
+    ingress.className: traefik
+    ingress.certIssuer: Production
+  asserts:
+  - equal:
+      path: metadata.annotations
+      value:
+        cert-manager.io/cluster-issuer: letsencrypt-traefik-production
+  - equal:
+      path: spec.tls
+      value:
+      - hosts:
+        - fragalysis.example.com
+        secretName: stack-tls

@@ -1,0 +1,31 @@
+{{- if not .Values.database.host }}
+{{- /*
+If pre-existing volumes are not allowed (when only the database is being
+deployed) we must stop if the volume exists. This prevents consecutive
+production to staging replications without first removing the database.
+*/}}
+{{- if and (not .Values.database.allowPreExistingVolume) (not .Values.stack.deploy) (lookup "v1" "PersistentVolumeClaim" .Release.Namespace "database") }}
+{{- fail "The database volume exists but shouldn't. Do you need to remove it (and the stack) first?" }}
+{{- end }}
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: database
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "fragalysis-stack.labels" . | nindent 4 }}
+  annotations:
+    # Retain the database when the release is uninstalled.
+    helm.sh/resource-policy: keep
+spec:
+  accessModes:
+  - ReadWriteOnce
+  {{- /* A blank class uses the cluster default ('' would disable provisioning) */}}
+  {{- with trim .Values.database.volume.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.database.volume.size | quote }}
+{{- end }}

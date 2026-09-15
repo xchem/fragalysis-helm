@@ -1,0 +1,98 @@
+---
+suite: redis
+templates:
+- configmap-redis.yaml
+- deployment-redis.yaml
+- pvc-redis.yaml
+- service-redis.yaml
+release:
+  namespace: fragalysis
+tests:
+- it: is deployed without a volume by default
+  template: deployment-redis.yaml
+  asserts:
+  - equal:
+      path: metadata.name
+      value: redis
+  - equal:
+      path: spec.selector.matchLabels
+      value:
+        name: redis
+  - equal:
+      path: spec.template.spec.containers[0].image
+      value: redis:7.4.9-alpine3.21
+  - notContains:
+      path: spec.template.spec.volumes
+      content:
+        name: data
+      any: true
+
+- it: has no volume claim by default
+  template: pvc-redis.yaml
+  asserts:
+  - hasDocuments:
+      count: 0
+
+- it: disables persistence by default
+  template: configmap-redis.yaml
+  asserts:
+  - matchRegex:
+      path: data["redis.conf"]
+      pattern: save ""
+  - notMatchRegex:
+      path: data["redis.conf"]
+      pattern: appendonly yes
+  - matchRegex:
+      path: data["redis.conf"]
+      pattern: databases 4
+
+- it: is not deployed when the stack is not deployed
+  set:
+    stack.deploy: false
+  asserts:
+  - hasDocuments:
+      count: 0
+
+- it: persists to a volume when enabled
+  set:
+    redis.volume.enabled: true
+    redis.volume.size: 2Gi
+  asserts:
+  - hasDocuments:
+      count: 1
+
+- it: claims the persistence volume
+  template: pvc-redis.yaml
+  set:
+    redis.volume.enabled: true
+    redis.volume.size: 2Gi
+  asserts:
+  - equal:
+      path: spec.resources.requests.storage
+      value: 2Gi
+  - notExists:
+      path: spec.storageClassName
+
+- it: mounts the persistence volume
+  template: deployment-redis.yaml
+  set:
+    redis.volume.enabled: true
+  asserts:
+  - contains:
+      path: spec.template.spec.volumes
+      content:
+        name: data
+        persistentVolumeClaim:
+          claimName: redis
+
+- it: configures persistence
+  template: configmap-redis.yaml
+  set:
+    redis.volume.enabled: true
+  asserts:
+  - matchRegex:
+      path: data["redis.conf"]
+      pattern: dir /redis-master-data
+  - matchRegex:
+      path: data["redis.conf"]
+      pattern: appendonly yes

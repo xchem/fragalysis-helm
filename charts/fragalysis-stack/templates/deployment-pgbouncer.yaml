@@ -1,0 +1,75 @@
+{{- if and (not .Values.database.host) .Values.pgbouncer.enabled }}
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: pgbouncer
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: pgbouncer
+    {{- include "fragalysis-stack.labels" . | nindent 4 }}
+spec:
+  revisionHistoryLimit: 10
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0  # Avoid Terminating and ContainerCreating at the same time
+  selector:
+    matchLabels:
+      app: pgbouncer
+  template:
+    metadata:
+      labels:
+        app: pgbouncer
+    spec:
+      containers:
+      - name: pgbouncer
+        image: {{ printf "%s:%s" .Values.pgbouncer.image.repository .Values.pgbouncer.image.tag | quote }}
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 5432
+        resources:
+          {{- toYaml .Values.pgbouncer.resources | nindent 10 }}
+        env:
+        # The database location and credentials (from the database secret)
+        - name: DB_HOST
+          valueFrom:
+            secretKeyRef:
+              name: database
+              key: host
+        - name: DB_USER
+          value: fragalysis
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: database
+              key: user_password
+        - name: DEFAULT_POOL_SIZE
+          value: {{ .Values.pgbouncer.defaultPoolSize | quote }}
+        - name: LOG_CONNECTIONS
+          value: {{ .Values.pgbouncer.logConnections | quote }}
+        - name: LOG_DISCONNECTIONS
+          value: {{ .Values.pgbouncer.logDisconnections | quote }}
+        - name: MAX_CLIENT_CONN
+          value: {{ .Values.pgbouncer.maxClientConn | quote }}
+        - name: MAX_DB_CONNECTIONS
+          value: {{ .Values.pgbouncer.maxDbConnections | quote }}
+        - name: MIN_POOL_SIZE
+          value: {{ .Values.pgbouncer.minPoolSize | quote }}
+        livenessProbe:
+          tcpSocket:
+            port: 5432
+          periodSeconds: 60
+        lifecycle:
+          preStop:
+            exec:
+              # Allow existing queries clients to complete within 120 seconds
+              command:
+              - /bin/sh
+              - -c
+              - killall -INT pgbouncer && sleep 120
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - all
+{{- end }}

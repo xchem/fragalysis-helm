@@ -1,0 +1,199 @@
+---
+suite: authenticator Deployment
+templates:
+- deployment.yaml
+release:
+  namespace: fragalysis
+tests:
+- it: is deployed into the release namespace with a fixed name
+  asserts:
+  - isKind:
+      of: Deployment
+  - equal:
+      path: metadata.name
+      value: ta-authenticator
+  - equal:
+      path: metadata.namespace
+      value: fragalysis
+  - equal:
+      path: spec.selector.matchLabels
+      value:
+        name: ta-authenticator
+  - equal:
+      path: spec.template.spec.serviceAccountName
+      value: ta-authenticator
+
+- it: uses the chart's appVersion as the default image tag
+  chart:
+    appVersion: 9.8.7
+  asserts:
+  - equal:
+      path: spec.template.spec.containers[1].name
+      value: ta-authenticator
+  - equal:
+      path: spec.template.spec.containers[1].image
+      value: docker.io/xchem/fragalysis-ispyb-target-access-authenticator:9.8.7
+  - equal:
+      path: spec.template.spec.containers[1].imagePullPolicy
+      value: IfNotPresent
+
+- it: always pulls mutable tags
+  set:
+    image.tag: latest
+  asserts:
+  - equal:
+      path: spec.template.spec.containers[1].image
+      value: docker.io/xchem/fragalysis-ispyb-target-access-authenticator:latest
+  - equal:
+      path: spec.template.spec.containers[1].imagePullPolicy
+      value: Always
+
+- it: uses an explicit pull policy
+  set:
+    image.pullPolicy: Always
+  asserts:
+  - equal:
+      path: spec.template.spec.containers[1].imagePullPolicy
+      value: Always
+
+- it: runs a memcached sidecar
+  asserts:
+  - equal:
+      path: spec.template.spec.containers[0].name
+      value: memcached
+  - equal:
+      path: spec.template.spec.containers[0].image
+      value: docker.io/memcached:1.6.39-alpine3.22
+  - equal:
+      path: spec.template.spec.containers[0].args
+      value:
+      - -v
+      - --memory-limit=128
+  - equal:
+      path: spec.template.spec.containers[0].resources.limits.memory
+      value: 160Mi
+
+- it: sets the ISPyB environment
+  set:
+    ispyb.host: ispyb.example.com
+    ispyb.port: 3306
+    ispyb.user: ispyb-user
+    ispyb.password: ispyb-pass
+    ssh.host: ssh.example.com
+    ssh.user: ssh-user
+    workers: 2
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[1].env
+      content:
+        name: TAA_ISPYB_HOST
+        value: ispyb.example.com
+  - contains:
+      path: spec.template.spec.containers[1].env
+      content:
+        name: TAA_ISPYB_PORT
+        value: "3306"
+  - contains:
+      path: spec.template.spec.containers[1].env
+      content:
+        name: TAA_ISPYB_USER
+        value: ispyb-user
+  - contains:
+      path: spec.template.spec.containers[1].env
+      content:
+        name: TAA_ISPYB_PASSWORD
+        value: ispyb-pass
+  - contains:
+      path: spec.template.spec.containers[1].env
+      content:
+        name: TAA_SSH_HOST
+        value: ssh.example.com
+  - contains:
+      path: spec.template.spec.containers[1].env
+      content:
+        name: TAA_SSH_USER
+        value: ssh-user
+  - contains:
+      path: spec.template.spec.containers[1].env
+      content:
+        name: WORKERS
+        value: "2"
+
+- it: has no keys or private key environment by default
+  asserts:
+  - notContains:
+      path: spec.template.spec.containers[1].env
+      content:
+        name: TAA_QUERY_KEY
+      any: true
+  - notContains:
+      path: spec.template.spec.containers[1].env
+      content:
+        name: TAA_STATS_KEY
+      any: true
+  - notContains:
+      path: spec.template.spec.containers[1].env
+      content:
+        name: TAA_SSH_PRIVATE_KEY_FILENAME
+      any: true
+  - notExists:
+      path: spec.template.spec.volumes
+
+- it: reads the keys from the keys secret
+  set:
+    queryKey: query-key
+    statsKey: stats-key
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[1].env
+      content:
+        name: TAA_QUERY_KEY
+        valueFrom:
+          secretKeyRef:
+            name: keys
+            key: query_key
+  - contains:
+      path: spec.template.spec.containers[1].env
+      content:
+        name: TAA_STATS_KEY
+        valueFrom:
+          secretKeyRef:
+            name: keys
+            key: stats_key
+
+- it: mounts a private key
+  set:
+    ssh.privateKey: |
+      -----BEGIN OPENSSH PRIVATE KEY-----
+      -----END OPENSSH PRIVATE KEY-----
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[1].env
+      content:
+        name: TAA_SSH_PRIVATE_KEY_FILENAME
+        value: /home/taa/fragalysis-stack-ssh-key
+  - contains:
+      path: spec.template.spec.containers[1].volumeMounts
+      content:
+        name: ssh-key
+        mountPath: /home/taa/fragalysis-stack-ssh-key
+        subPath: fragalysis-stack-ssh-key
+  - contains:
+      path: spec.template.spec.volumes
+      content:
+        name: ssh-key
+        secret:
+          secretName: ssh-key
+
+- it: probes a port the container exposes
+  asserts:
+  - equal:
+      path: spec.template.spec.containers[1].ports
+      value:
+      - containerPort: 8080
+        name: auth
+      - containerPort: 8081
+        name: stats
+  - equal:
+      path: spec.template.spec.containers[1].livenessProbe.tcpSocket.port
+      value: auth

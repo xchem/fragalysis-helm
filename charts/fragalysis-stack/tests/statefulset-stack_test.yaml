@@ -1,0 +1,405 @@
+---
+suite: stack StatefulSet
+templates:
+- statefulset-stack.yaml
+release:
+  namespace: fragalysis
+set:
+  stack.image.tag: 2026.09.1
+  graph.hostname: graph.graph.svc
+tests:
+- it: is deployed into the release namespace with a fixed name
+  asserts:
+  - isKind:
+      of: StatefulSet
+  - equal:
+      path: metadata.name
+      value: stack
+  - equal:
+      path: metadata.namespace
+      value: fragalysis
+  - equal:
+      path: spec.selector.matchLabels
+      value:
+        name: stack
+
+- it: requires a graph hostname when waiting for the graph
+  set:
+    graph.hostname: ""
+  asserts:
+  - failedTemplate:
+      errorPattern: graph.hostname must be set
+
+- it: requires an image tag
+  set:
+    stack.image.tag: ""
+  asserts:
+  - failedTemplate:
+      errorPattern: stack.image.tag must be set
+
+- it: is not deployed when the stack is not deployed
+  set:
+    stack.deploy: false
+  asserts:
+  - hasDocuments:
+      count: 0
+
+- it: refuses zero replicas
+  set:
+    stack.replicas: 0
+  asserts:
+  - failedTemplate:
+      errorPattern: stack.replicas must be greater than 0
+
+- it: uses the image and replicas
+  set:
+    stack.replicas: 3
+  asserts:
+  - equal:
+      path: spec.replicas
+      value: 3
+  - equal:
+      path: spec.template.spec.containers[0].image
+      value: docker.io/xchem/fragalysis-stack:2026.09.1
+  - equal:
+      path: spec.template.spec.containers[0].imagePullPolicy
+      value: IfNotPresent
+  - notExists:
+      path: spec.template.metadata.annotations
+
+- it: always pulls (and rolls out) mutable tags
+  set:
+    stack.image.tag: latest
+  asserts:
+  - equal:
+      path: spec.template.spec.containers[0].imagePullPolicy
+      value: Always
+  - exists:
+      path: spec.template.metadata.annotations["fragalysis.xchem/deployed-at"]
+
+- it: uses an explicit pull policy
+  set:
+    stack.image.tag: stable
+    stack.image.pullPolicy: Never
+  asserts:
+  - equal:
+      path: spec.template.spec.containers[0].imagePullPolicy
+      value: Never
+
+- it: uses the resources, which may omit the cpu limit
+  set:
+    stack.resources.limits.cpu: null
+  asserts:
+  - equal:
+      path: spec.template.spec.containers[0].resources
+      value:
+        limits:
+          memory: 4Gi
+          ephemeral-storage: 100Gi
+        requests:
+          cpu: 1
+          memory: 4Gi
+          ephemeral-storage: 100Gi
+
+- it: waits for the graph by default
+  set:
+    graph.hostname: graph.graph.svc
+  asserts:
+  - contains:
+      path: spec.template.spec.initContainers
+      content:
+        name: wait-for-graph
+        image: docker.io/library/busybox:1.28.0
+        command:
+        - sh
+        - -c
+        - until nslookup graph.graph.svc; do echo waiting for graph; sleep 1; done;
+        terminationMessagePolicy: FallbackToLogsOnError
+      any: true
+
+- it: does not wait for the graph when told not to
+  set:
+    stack.waitForGraph: false
+    graph.hostname: ""
+  asserts:
+  - notContains:
+      path: spec.template.spec.initContainers
+      content:
+        name: wait-for-graph
+      any: true
+
+- it: does not wait for an external database
+  set:
+    database.host: db.example.com
+  asserts:
+  - notContains:
+      path: spec.template.spec.initContainers
+      content:
+        name: wait-for-database
+      any: true
+
+- it: connects to the database through pgbouncer
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: POSTGRESQL_HOST
+        value: pgbouncer
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: POSTGRESQL_PORT
+        value: "5432"
+
+- it: connects to the database directly without pgbouncer
+  set:
+    pgbouncer.enabled: false
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: POSTGRESQL_HOST
+        value: database
+
+- it: connects to an external database
+  set:
+    database.host: db.example.com
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: POSTGRESQL_HOST
+        value: db.example.com
+
+- it: sets the core environment
+  set:
+    graph.hostname: graph.graph.svc
+    graph.password: graph-secret
+    taAuth.service: http://auth
+    taAuth.queryKey: query-key
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: NEO4J_BOLT_URL
+        value: bolt://neo4j:test@graph.graph.svc:7687
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: NEO4J_AUTH
+        value: neo4j/graph-secret
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: STACK_CONCURRENCY
+        value: "4"
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: DEPLOYMENT_MODE
+        value: development
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: TA_AUTH_SERVICE
+        value: http://auth
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: TA_AUTH_QUERY_KEY
+        value: query-key
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: WEB_DJANGO_SECRET_KEY
+        valueFrom:
+          secretKeyRef:
+            name: django
+            key: secret_key
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: POSTGRESQL_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: database
+            key: user_password
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: BUILD_XCDB
+        value: "no"
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: AUTHENTICATE_UPLOAD
+        value: "True"
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: DISABLE_RESTRICT_PROPOSALS_TO_MEMBERSHIP
+        value: "True"
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: ENABLE_SERVICE_STATUS
+        value: fragmentation_graph:ispyb:keycloak
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: MAX_DOWNLOAD_CONCURRENCY_PERCENT
+        value: "80"
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: TAS_REGEX
+        value: ^(lb\d{5})(-(\d+)){0,1}$
+
+- it: omits optional environment by default
+  asserts:
+  - notContains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: OIDC_RP_CLIENT_SECRET
+      any: true
+  - notContains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: XCHEM_HOST
+      any: true
+  - notContains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: EMAIL_USER
+      any: true
+  - notContains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: CACHE_ENABLED
+      any: true
+  - notContains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: DEBUG_FRAGALYSIS
+      any: true
+  - notContains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: FRAGALYSIS_BACKEND_SENTRY_DNS
+      any: true
+
+- it: disables the download concurrency check with 0
+  set:
+    stack.maxDownloadConcurrencyPercent: 0
+  asserts:
+  - notContains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: MAX_DOWNLOAD_CONCURRENCY_PERCENT
+      any: true
+
+- it: sets OIDC environment when the client secret is set
+  set:
+    oidc.rpClientSecret: oidc-secret
+    oidc.keycloakRealmUrl: https://keycloak.example.com/auth/realms/xchem
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: OIDC_RP_CLIENT_SECRET
+        value: oidc-secret
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: OIDC_RP_CLIENT_ID
+        value: fragalysis-local
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: OIDC_KEYCLOAK_REALM
+        value: https://keycloak.example.com/auth/realms/xchem
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: OIDC_RENEW_ID_TOKEN_EXPIRY_MINUTES
+        value: "210"
+
+- it: sets email environment when the user is set
+  set:
+    email.user: fragalysis@example.com
+    email.host: smtp.example.com
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: EMAIL_USER
+        value: fragalysis@example.com
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: EMAIL_HOST
+        value: smtp.example.com
+  - notContains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: EMAIL_PORT
+      any: true
+
+- it: refers to the xchem secret when the xchem host is set
+  set:
+    xchem.host: xchem.example.com
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: XCHEM_HOST
+        valueFrom:
+          secretKeyRef:
+            name: xchem
+            key: host
+
+- it: does not authenticate uploads when told not to
+  set:
+    stack.authenticateUpload: false
+    stack.disableRestrictProposalsToMembership: false
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: AUTHENTICATE_UPLOAD
+        value: "False"
+  - notContains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: DISABLE_RESTRICT_PROPOSALS_TO_MEMBERSHIP
+      any: true
+
+- it: mounts media and tmp volumes
+  asserts:
+  - contains:
+      path: spec.template.spec.volumes
+      content:
+        name: media
+        persistentVolumeClaim:
+          claimName: media
+  - contains:
+      path: spec.template.spec.volumes
+      content:
+        name: ephemeral
+        emptyDir:
+          sizeLimit: 110Gi
+  - notExists:
+      path: spec.volumeClaimTemplates
+
+- it: creates a log volume when given a storage class
+  set:
+    stack.logVolumeStorageClass: efs
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].volumeMounts
+      content:
+        name: log
+        mountPath: /code/logs
+  - equal:
+      path: spec.volumeClaimTemplates[0].spec.storageClassName
+      value: efs

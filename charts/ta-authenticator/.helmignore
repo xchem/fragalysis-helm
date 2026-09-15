@@ -1,0 +1,11 @@
+# Patterns to ignore when building packages.
+.DS_Store
+.git/
+.gitignore
+.idea/
+.vscode/
+*.tmp
+*.orig
+*~
+# Unit tests are not part of the packaged chart
+tests/

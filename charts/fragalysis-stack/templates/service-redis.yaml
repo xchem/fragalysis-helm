@@ -1,0 +1,16 @@
+{{- if .Values.stack.deploy }}
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: redis
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "fragalysis-stack.labels" . | nindent 4 }}
+spec:
+  selector:
+    name: redis
+  ports:
+  - name: client
+    port: 6379
+{{- end }}

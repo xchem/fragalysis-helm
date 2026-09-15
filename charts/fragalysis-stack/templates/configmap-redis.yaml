@@ -1,0 +1,37 @@
+{{- if .Values.stack.deploy }}
+---
+# See https://redis.io/docs/management/config/
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: redis-conf
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "fragalysis-stack.labels" . | nindent 4 }}
+data:
+  redis.conf: |
+    # NETWORK ##########################################################################
+    protected-mode no
+    # GENERAL ##########################################################################
+    always-show-logo yes
+    databases {{ .Values.redis.conf.databases }}
+    logfile ""
+    loglevel {{ .Values.redis.conf.logLevel }}
+    # SNAPSHOTTING #####################################################################
+    {{- if .Values.redis.volume.enabled }}
+    dir /redis-master-data
+    save 3600 1 300 100 60 10000
+    sanitize-dump-payload yes
+    {{- else }}
+    save ""
+    {{- end }}
+    # MEMORY MANAGEMENT ################################################################
+    maxmemory {{ .Values.redis.conf.maxMemory }}
+    maxmemory-policy allkeys-lru
+    maxmemory-samples 10
+    {{- if .Values.redis.volume.enabled }}
+    # APPEND ONLY MODE #################################################################
+    appenddirname "append-only-files"
+    appendonly yes
+    {{- end }}
+{{- end }}

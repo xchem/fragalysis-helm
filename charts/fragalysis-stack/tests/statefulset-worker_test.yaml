@@ -1,0 +1,126 @@
+---
+suite: worker StatefulSet
+templates:
+- statefulset-worker.yaml
+release:
+  namespace: fragalysis
+set:
+  stack.image.tag: 2026.09.1
+  graph.hostname: graph.graph.svc
+tests:
+- it: is deployed with a fixed name
+  asserts:
+  - isKind:
+      of: StatefulSet
+  - equal:
+      path: metadata.name
+      value: worker
+  - equal:
+      path: metadata.namespace
+      value: fragalysis
+  - equal:
+      path: spec.selector.matchLabels
+      value:
+        name: worker
+
+- it: requires a graph hostname when waiting for the graph
+  set:
+    graph.hostname: ""
+  asserts:
+  - failedTemplate:
+      errorPattern: graph.hostname must be set
+
+- it: requires an image tag
+  set:
+    stack.image.tag: ""
+  asserts:
+  - failedTemplate:
+      errorPattern: stack.image.tag must be set
+
+- it: is not deployed when the stack is not deployed
+  set:
+    stack.deploy: false
+  asserts:
+  - hasDocuments:
+      count: 0
+
+- it: runs as a worker
+  set:
+    worker.replicas: 2
+    worker.concurrency: 8
+  asserts:
+  - equal:
+      path: spec.replicas
+      value: 2
+  - equal:
+      path: spec.template.spec.containers[0].image
+      value: docker.io/xchem/fragalysis-stack:2026.09.1
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: CONTAINER_ROLE
+        value: worker
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: WORKER_CONCURRENCY
+        value: "8"
+  - notContains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: STACK_CONCURRENCY
+      any: true
+  - notContains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: ENABLE_SERVICE_STATUS
+      any: true
+
+- it: uses the worker resources
+  asserts:
+  - equal:
+      path: spec.template.spec.containers[0].resources.limits.memory
+      value: 16Gi
+  - contains:
+      path: spec.template.spec.volumes
+      content:
+        name: ephemeral
+        emptyDir:
+          sizeLimit: 110Gi
+
+- it: only sets AUTHENTICATE_UPLOAD when uploads are not authenticated
+  asserts:
+  - notContains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: AUTHENTICATE_UPLOAD
+      any: true
+
+- it: does not authenticate uploads when told not to
+  set:
+    stack.authenticateUpload: false
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: AUTHENTICATE_UPLOAD
+        value: "False"
+
+- it: shares the stack's optional environment
+  set:
+    squonk2.dmapiUrl: https://example.com/data-manager-api/api
+    xchem.host: xchem.example.com
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: SQUONK2_DMAPI_URL
+        value: https://example.com/data-manager-api/api
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: XCHEM_HOST
+        valueFrom:
+          secretKeyRef:
+            name: xchem
+            key: host

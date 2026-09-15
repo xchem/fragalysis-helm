@@ -1,0 +1,14 @@
+# Packaged charts and resolved dependencies
+*.tgz
+charts/*/charts/
+
+# helm-unittest output
+charts/*/tests/__snapshot__/
+charts/*/tests/.debug/
+
+# Installation values (they hold sensitive material)
+values-*.yaml
+!values-*.example.yaml
+
+# macOS
+.DS_Store

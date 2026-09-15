@@ -1,0 +1,197 @@
+---
+suite: backups
+templates:
+- cronjob-media-backup.yaml
+- cronjob-postgres-backup-daily.yaml
+- cronjob-postgres-backup-hourly.yaml
+- cronjob-postgres-backup-monthly.yaml
+- cronjob-postgres-backup-weekly.yaml
+- pvc-postgres-backup.yaml
+release:
+  namespace: fragalysis
+tests:
+- it: has no backups by default
+  asserts:
+  - hasDocuments:
+      count: 0
+
+- it: deploys every database backup when enabled
+  templates:
+  - cronjob-postgres-backup-daily.yaml
+  - cronjob-postgres-backup-hourly.yaml
+  - cronjob-postgres-backup-monthly.yaml
+  - cronjob-postgres-backup-weekly.yaml
+  - pvc-postgres-backup.yaml
+  set:
+    backups.database.enabled: true
+  asserts:
+  - hasDocuments:
+      count: 1
+
+- it: has no database backups for an external database
+  set:
+    backups.database.enabled: true
+    database.host: db.example.com
+  asserts:
+  - hasDocuments:
+      count: 0
+
+- it: claims a backup volume
+  template: pvc-postgres-backup.yaml
+  set:
+    backups.database.enabled: true
+  asserts:
+  - equal:
+      path: metadata.name
+      value: database-backup
+  - equal:
+      path: spec.resources.requests.storage
+      value: 4Gi
+  - notExists:
+      path: spec.storageClassName
+
+- it: runs hourly backups
+  template: cronjob-postgres-backup-hourly.yaml
+  set:
+    backups.database.enabled: true
+  asserts:
+  - equal:
+      path: metadata.name
+      value: postgres-backup-hourly
+  - equal:
+      path: spec.schedule
+      value: 51 * * * *
+  - equal:
+      path: spec.jobTemplate.spec.template.spec.containers[0].image
+      value: informaticsmatters/sql-backup:15.7
+  - contains:
+      path: spec.jobTemplate.spec.template.spec.containers[0].env
+      content:
+        name: BACKUP_COUNT
+        value: "24"
+  - contains:
+      path: spec.jobTemplate.spec.template.spec.containers[0].env
+      content:
+        name: PGADMINPASS
+        valueFrom:
+          secretKeyRef:
+            name: database
+            key: root_password
+  - notContains:
+      path: spec.jobTemplate.spec.template.spec.containers[0].env
+      content:
+        name: RSYNC_HOST
+      any: true
+  - notContains:
+      path: spec.jobTemplate.spec.template.spec.containers[0].env
+      content:
+        name: USE_RCLONE
+      any: true
+  - notExists:
+      path: spec.jobTemplate.spec.template.spec.imagePullSecrets
+
+- it: copies hourly backups with rsync and rclone
+  template: cronjob-postgres-backup-hourly.yaml
+  set:
+    backups.database.enabled: true
+    backups.database.rsync.enabled: true
+    backups.database.rcloneBucketAndPath: bucket/path
+    backups.imagePullSecret: registry-secret
+  asserts:
+  - contains:
+      path: spec.jobTemplate.spec.template.spec.containers[0].env
+      content:
+        name: RSYNC_HOST
+        valueFrom:
+          secretKeyRef:
+            name: backup-rsync
+            key: host
+  - contains:
+      path: spec.jobTemplate.spec.template.spec.containers[0].env
+      content:
+        name: USE_RCLONE_BUCKET_AND_PATH
+        value: bucket/path
+  - equal:
+      path: spec.jobTemplate.spec.template.spec.imagePullSecrets
+      value:
+      - name: registry-secret
+
+- it: collects daily backups from the hourly backups
+  template: cronjob-postgres-backup-daily.yaml
+  set:
+    backups.database.enabled: true
+  asserts:
+  - equal:
+      path: metadata.name
+      value: postgres-backup-daily
+  - contains:
+      path: spec.jobTemplate.spec.template.spec.containers[0].env
+      content:
+        name: BACKUP_PRIOR_TYPE
+        value: hourly
+  - contains:
+      path: spec.jobTemplate.spec.template.spec.containers[0].env
+      content:
+        name: BACKUP_PRIOR_COUNT
+        value: "24"
+
+- it: disables a collection with a blank schedule
+  templates:
+  - cronjob-postgres-backup-daily.yaml
+  - cronjob-postgres-backup-monthly.yaml
+  - cronjob-postgres-backup-weekly.yaml
+  set:
+    backups.database.enabled: true
+    backups.database.daily.schedule: ""
+    backups.database.weekly.schedule: ""
+    backups.database.monthly.schedule: ""
+  asserts:
+  - hasDocuments:
+      count: 0
+
+- it: collects monthly backups from the weekly backups
+  template: cronjob-postgres-backup-monthly.yaml
+  set:
+    backups.database.enabled: true
+  asserts:
+  - equal:
+      path: spec.schedule
+      value: 41 0 8 * *
+  - contains:
+      path: spec.jobTemplate.spec.template.spec.containers[0].env
+      content:
+        name: BACKUP_PRIOR_TYPE
+        value: weekly
+
+- it: backs up media
+  template: cronjob-media-backup.yaml
+  set:
+    backups.media.enabled: true
+    backups.media.rcloneBucket: media-bucket
+  asserts:
+  - equal:
+      path: metadata.name
+      value: media-backup
+  - equal:
+      path: spec.jobTemplate.spec.template.spec.containers[0].image
+      value: informaticsmatters/volume-replicator:3.1.1
+  - contains:
+      path: spec.jobTemplate.spec.template.spec.containers[0].env
+      content:
+        name: S3_BUCKET_NAME
+        value: media-bucket
+  - contains:
+      path: spec.jobTemplate.spec.template.spec.volumes
+      content:
+        name: volume-b
+        persistentVolumeClaim:
+          claimName: media
+
+- it: does not back up media when the stack is not deployed
+  template: cronjob-media-backup.yaml
+  set:
+    backups.media.enabled: true
+    stack.deploy: false
+  asserts:
+  - hasDocuments:
+      count: 0

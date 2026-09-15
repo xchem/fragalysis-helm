@@ -1,0 +1,161 @@
+---
+suite: database
+templates:
+- configmap-postgres-conf.yaml
+- configmap-postgres-init.yaml
+- pvc-database.yaml
+- service-database.yaml
+- statefulset-database.yaml
+release:
+  namespace: fragalysis
+tests:
+- it: is deployed even when the stack is not
+  set:
+    stack.deploy: false
+  asserts:
+  - hasDocuments:
+      count: 1
+
+- it: is not deployed for an external database
+  set:
+    database.host: db.example.com
+  asserts:
+  - hasDocuments:
+      count: 0
+
+- it: deploys the database StatefulSet
+  template: statefulset-database.yaml
+  asserts:
+  - equal:
+      path: metadata.name
+      value: database
+  - equal:
+      path: metadata.namespace
+      value: fragalysis
+  - equal:
+      path: spec.selector.matchLabels
+      value:
+        name: database
+  - equal:
+      path: spec.template.spec.containers[0].image
+      value: docker.io/xchem/fragalysis-database:2026.04.1
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: POSTGRES_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: database
+            key: root_password
+  - contains:
+      path: spec.template.spec.containers[0].volumeMounts
+      content:
+        mountPath: /docker-entrypoint-initdb.d/01-init.sh
+        name: postgres-init
+        subPath: 01-init.sh
+        readOnly: true
+
+- it: does not mount the init file when told not to
+  template: statefulset-database.yaml
+  set:
+    database.useInitFile: false
+  asserts:
+  - notContains:
+      path: spec.template.spec.volumes
+      content:
+        name: postgres-init
+      any: true
+
+- it: creates the fragalysis user without writing its password into the ConfigMap
+  template: configmap-postgres-init.yaml
+  asserts:
+  - matchRegex:
+      path: data["01-init.sh"]
+      pattern: ALTER USER fragalysis WITH PASSWORD '\$FRAGALYSIS_USER_PASSWORD';
+
+- it: gives the init script the fragalysis user password
+  template: statefulset-database.yaml
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: FRAGALYSIS_USER_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: database
+            key: user_password
+
+- it: leaves the init script empty when not creating users
+  template: configmap-postgres-init.yaml
+  set:
+    database.createUsersAndDatabases: false
+  asserts:
+  - notMatchRegex:
+      path: data["01-init.sh"]
+      pattern: psql
+
+- it: writes the postgres configuration
+  template: configmap-postgres-conf.yaml
+  set:
+    database.conf: |
+      max_connections = 10
+  asserts:
+  - equal:
+      path: data["postgresql.conf"]
+      value: |
+        max_connections = 10
+
+- it: claims a volume that is kept when the release is removed
+  template: pvc-database.yaml
+  asserts:
+  - equal:
+      path: metadata.name
+      value: database
+  - equal:
+      path: metadata.annotations["helm.sh/resource-policy"]
+      value: keep
+  - equal:
+      path: spec.resources.requests.storage
+      value: 2Gi
+  - notExists:
+      path: spec.storageClassName
+
+- it: uses a named storage class
+  template: pvc-database.yaml
+  set:
+    database.volume.storageClass: gp3
+  asserts:
+  - equal:
+      path: spec.storageClassName
+      value: gp3
+
+- it: refuses a pre-existing volume when told to
+  template: pvc-database.yaml
+  set:
+    stack.deploy: false
+    database.allowPreExistingVolume: false
+  kubernetesProvider:
+    scheme:
+      v1/PersistentVolumeClaim:
+        gvr:
+          version: v1
+          resource: persistentvolumeclaims
+        namespaced: true
+    objects:
+    - kind: PersistentVolumeClaim
+      apiVersion: v1
+      metadata:
+        name: database
+        namespace: fragalysis
+  asserts:
+  - failedTemplate:
+      errorPattern: The database volume exists but shouldn't
+
+- it: accepts an absent volume when refusing pre-existing volumes
+  template: pvc-database.yaml
+  set:
+    stack.deploy: false
+    database.allowPreExistingVolume: false
+  asserts:
+  - hasDocuments:
+      count: 1

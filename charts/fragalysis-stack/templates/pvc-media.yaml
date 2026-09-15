@@ -1,0 +1,27 @@
+{{- if .Values.stack.deploy }}
+{{- if and (not .Values.media.allowPreExistingVolume) (lookup "v1" "PersistentVolumeClaim" .Release.Namespace "media") }}
+{{- fail "The media volume exists but shouldn't. Remove it before deploying the stack." }}
+{{- end }}
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: media
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "fragalysis-stack.labels" . | nindent 4 }}
+  annotations:
+    # The media volume is time-consuming to recreate.
+    # Retain it when the stack is shut down or the release is uninstalled.
+    helm.sh/resource-policy: keep
+spec:
+  accessModes:
+  - {{ .Values.media.volume.accessMode }}
+  {{- /* A blank class uses the cluster default ('' would disable provisioning) */}}
+  {{- with trim .Values.media.volume.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.media.volume.size | quote }}
+{{- end }}

@@ -1,0 +1,65 @@
+---
+suite: pgbouncer
+templates:
+- deployment-pgbouncer.yaml
+- service-pgbouncer.yaml
+release:
+  namespace: fragalysis
+tests:
+- it: is deployed by default
+  asserts:
+  - hasDocuments:
+      count: 1
+  - equal:
+      path: metadata.name
+      value: pgbouncer
+  - equal:
+      path: metadata.namespace
+      value: fragalysis
+
+- it: is not deployed when disabled
+  set:
+    pgbouncer.enabled: false
+  asserts:
+  - hasDocuments:
+      count: 0
+
+- it: is not deployed for an external database
+  set:
+    database.host: db.example.com
+  asserts:
+  - hasDocuments:
+      count: 0
+
+- it: reads the database location and password from the database secret
+  template: deployment-pgbouncer.yaml
+  asserts:
+  - equal:
+      path: spec.template.spec.containers[0].image
+      value: xchem/pgbouncer:1.25.2
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: DB_HOST
+        valueFrom:
+          secretKeyRef:
+            name: database
+            key: host
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: DB_USER
+        value: fragalysis
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: DB_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: database
+            key: user_password
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: MAX_CLIENT_CONN
+        value: "1000"
