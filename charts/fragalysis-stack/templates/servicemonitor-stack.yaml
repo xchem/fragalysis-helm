@@ -1,0 +1,22 @@
+{{- if and .Values.stack.deploy .Values.stack.metrics.enabled }}
+---
+kind: ServiceMonitor
+apiVersion: monitoring.coreos.com/v1
+metadata:
+  name: fragalysis-stack
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "fragalysis-stack.labels" . | nindent 4 }}
+spec:
+  # A selector for the stack Service (the service to be scraped)
+  selector:
+    matchLabels:
+      name: stack
+  namespaceSelector:
+    matchNames:
+    - {{ .Release.Namespace }}
+  # The endpoint (port name) and the scraping interval
+  endpoints:
+  - port: http
+    interval: 60s
+{{- end }}

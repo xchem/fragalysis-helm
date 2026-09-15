@@ -1,0 +1,18 @@
+{{- if .Values.ingress.statsHostname }}
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: stats
+  namespace: {{ .Release.Namespace }}
+  labels:
+    name: stats
+    {{- include "ta-authenticator.labels" . | nindent 4 }}
+spec:
+  selector:
+    name: ta-authenticator
+  ports:
+  - name: stats
+    port: 80
+    targetPort: stats
+{{- end }}

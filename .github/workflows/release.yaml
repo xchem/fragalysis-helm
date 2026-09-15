@@ -1,0 +1,39 @@
+---
+name: release
+
+# Publish charts to the Helm repository (GitHub Pages, from the gh-pages branch).
+#
+# A chart is released (as a GitHub release named '<chart>-<version>' and an
+# entry in the repository index) when its Chart.yaml version has not been
+# released before. Bump a chart's version to release it.
+
+on:
+  push:
+    branches:
+    - main
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+    - name: Check out the repository
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+
+    - name: Configure git
+      run: |
+        git config user.name "$GITHUB_ACTOR"
+        git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+
+    - name: Install helm
+      uses: azure/setup-helm@v5
+      with:
+        version: v4.1.0
+
+    - name: Release charts
+      uses: helm/chart-releaser-action@v1.7.0
+      env:
+        CR_TOKEN: ${{ secrets.GITHUB_TOKEN }}

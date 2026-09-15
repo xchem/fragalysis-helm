@@ -1,0 +1,85 @@
+{{- if .Values.stack.deploy }}
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: redis
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "fragalysis-stack.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0  # Avoid Terminating and ContainerCreating at the same time
+  selector:
+    matchLabels:
+      name: redis
+  template:
+    metadata:
+      labels:
+        name: redis
+    spec:
+      serviceAccountName: stack
+      affinity:
+        {{- include "fragalysis-stack.affinityCoreFirst" . | nindent 8 }}
+
+      containers:
+      - name: redis
+        image: {{ printf "%s:%s" .Values.redis.image.repository .Values.redis.image.tag | quote }}
+        imagePullPolicy: IfNotPresent
+        command:
+        - redis-server
+        - /redis-master/redis.conf
+        env:
+        - name: MASTER
+          value: "true"
+        ports:
+        - name: client
+          containerPort: 6379
+        resources:
+          limits:
+            cpu: 250m
+          requests:
+            cpu: 250m
+            memory: 128Mi
+        livenessProbe:
+          tcpSocket:
+            port: client
+          initialDelaySeconds: 20
+          timeoutSeconds: 4
+          periodSeconds: 10
+          failureThreshold: 5
+          successThreshold: 1
+        readinessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - redis-cli ping
+          initialDelaySeconds: 10
+          timeoutSeconds: 4
+          periodSeconds: 10
+          failureThreshold: 5
+          successThreshold: 1
+        volumeMounts:
+        {{- if .Values.redis.volume.enabled }}
+        - name: data
+          mountPath: /redis-master-data
+        {{- end }}
+        - name: config
+          mountPath: /redis-master/redis.conf
+          subPath: redis.conf
+          readOnly: true
+
+      volumes:
+      {{- if .Values.redis.volume.enabled }}
+      - name: data
+        persistentVolumeClaim:
+          claimName: redis
+      {{- end }}
+      - name: config
+        configMap:
+          name: redis-conf
+{{- end }}

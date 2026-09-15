@@ -1,0 +1,20 @@
+{{- if and (not .Values.database.host) .Values.pgbouncer.enabled }}
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: pgbouncer
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: pgbouncer
+    {{- include "fragalysis-stack.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+  - port: 5432
+    targetPort: 5432
+    protocol: TCP
+    name: postgres
+  selector:
+    app: pgbouncer
+{{- end }}

@@ -1,0 +1,11 @@
+The Fragalysis Stack has been deployed to the '{{ .Release.Namespace }}' namespace.
+{{- if not .Values.stack.deploy }}
+
+The stack is not deployed (stack.deploy is false), only the database is.
+{{- end }}
+{{- if .Values.ingress.hostname }}
+
+Your stack URL is {{ ternary "https" "http" (not (empty .Values.ingress.certIssuer)) }}://{{ .Values.ingress.hostname }}
+{{- end }}
+
+The graph service is expected at '{{ .Values.graph.hostname }}'.

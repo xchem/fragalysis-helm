@@ -1,0 +1,17 @@
+---
+apiVersion: v2
+name: ta-authenticator
+description: >-
+  The Fragalysis (ISPyB) Target Access Authenticator - a service that
+  resolves a user's target access (proposals) for the Fragalysis Stack
+type: application
+version: 0.1.0
+# The default authenticator image tag
+appVersion: 1.4.4
+home: https://github.com/xchem/fragalysis-helm
+sources:
+- https://github.com/xchem/fragalysis-helm
+- https://github.com/xchem/fragalysis-ispyb-target-access-authenticator
+keywords:
+- fragalysis
+- xchem

@@ -1,0 +1,114 @@
+{{- if not .Values.database.host }}
+---
+kind: StatefulSet
+apiVersion: apps/v1
+metadata:
+  name: database
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "fragalysis-stack.labels" . | nindent 4 }}
+spec:
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      name: database
+  serviceName: database
+  template:
+    metadata:
+      name: database
+      labels:
+        name: database
+    spec:
+      serviceAccountName: stack
+      affinity:
+        {{- include "fragalysis-stack.affinityCoreFirst" . | nindent 8 }}
+
+      # To access the mounted database volume
+      # we set the security context's fsGroup
+      # to the group that will be using the volume
+      # In this case it's the postgres group in the container
+      # (obtained empirically)
+      securityContext:
+        fsGroup: 26
+
+      containers:
+      - name: database
+        image: {{ printf "%s/%s:%s" .Values.database.image.registry .Values.database.image.repository .Values.database.image.tag | quote }}
+        imagePullPolicy: IfNotPresent
+        terminationMessagePolicy: FallbackToLogsOnError
+        ports:
+        - containerPort: 5432
+        resources:
+          {{- toYaml .Values.database.resources | nindent 10 }}
+        readinessProbe:
+          # Wait 30 seconds
+          # then fail after more than 2 minutes of failures...
+          initialDelaySeconds: 30
+          failureThreshold: 9
+          periodSeconds: 15
+          timeoutSeconds: 2
+          exec:
+            command:
+            - /bin/sh
+            - -i
+            - -c
+            - pg_isready -h 127.0.0.1 -p 5432 -U admin -q
+        livenessProbe:
+          # Wait 30 seconds
+          # then fail after more than 2 minutes of failures...
+          initialDelaySeconds: 30
+          failureThreshold: 9
+          periodSeconds: 15
+          timeoutSeconds: 2
+          exec:
+            command:
+            - /bin/sh
+            - -i
+            - -c
+            - pg_isready -h 127.0.0.1 -p 5432 -U admin -q
+        volumeMounts:
+        {{- if .Values.database.useInitFile }}
+        # Database initialisation scripts
+        # It's here we create additional - 'out-of-the-box' users and databases
+        - mountPath: /docker-entrypoint-initdb.d/01-init.sh
+          name: postgres-init
+          subPath: 01-init.sh
+          readOnly: true
+        {{- end }}
+        # Persistent volume for data
+        - mountPath: /var/lib/postgresql/data
+          name: database-volume
+        env:
+        # PGDATA - the location of persisted database files.
+        # A sub-directory of the mount. If we use the mount itself
+        # postgres fails to start because it contains a lost+found directory.
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        # Admin/superuser name and password
+        - name: POSTGRES_USER
+          value: admin
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: database
+              key: root_password
+        # The fragalysis user password (used by the init script)
+        - name: FRAGALYSIS_USER_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: database
+              key: user_password
+
+      volumes:
+      {{- if .Values.database.useInitFile }}
+      - name: postgres-init
+        configMap:
+          name: postgres-init
+      {{- end }}
+      - name: postgres-conf
+        configMap:
+          name: postgres-conf
+      - name: database-volume
+        persistentVolumeClaim:
+          claimName: database
+{{- end }}

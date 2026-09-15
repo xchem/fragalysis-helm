@@ -1,0 +1,80 @@
+---
+# Values for the Target Access Authenticator chart.
+#
+# Everything is deployed into the release namespace, which can be the
+# namespace of the Fragalysis Stack. If it is, the stack reaches the
+# authenticator at "http://auth". Object names are fixed ('ta-authenticator',
+# 'auth', 'stats', 'keys' ...), so install at most one release of this chart
+# in a namespace.
+#
+# Values marked SENSITIVE should not be committed in plain text.
+# Provide them from an encrypted values file or your CI secrets.
+
+image:
+  registry: docker.io
+  repository: xchem/fragalysis-ispyb-target-access-authenticator
+  # If blank the chart's appVersion is used
+  tag: ""
+  # If blank it's automatic: 'Always' for the 'latest' and 'stable' tags,
+  # 'IfNotPresent' otherwise.
+  pullPolicy: ""
+
+# Number of processes (and concurrency within a process)
+workers: 1
+
+resources:
+  limits:
+    cpu: 1
+    memory: 128Mi
+  requests:
+    cpu: 10m
+    memory: 128Mi
+
+# The key that secures the authenticator (query) endpoint.
+# It must match the stack's 'taAuth.queryKey'. SENSITIVE
+queryKey: ""
+# The key that secures the stats endpoint. SENSITIVE
+statsKey: ""
+
+# The ISPyB database connection. SENSITIVE
+ispyb:
+  host: ""
+  port: ""
+  user: ""
+  password: ""
+
+# SSH access to the ISPyB database host. SENSITIVE
+ssh:
+  host: ""
+  user: ""
+  # An (optional) private key, the key itself (not a path).
+  # If set it is mounted into the container at a 'well known location'.
+  privateKey: ""
+
+ingress:
+  # One of 'nginx' or 'traefik'. This selects the IngressClass and the
+  # cert-manager ClusterIssuer name ('letsencrypt-<className>-<certIssuer>').
+  className: nginx
+  # The cert-manager issuer. If blank there will be no certificate.
+  certIssuer: production
+  # The authenticator hostname. If blank there is no auth Ingress.
+  authHostname: ""
+  # The stats hostname. If blank there is no stats Service or Ingress.
+  statsHostname: ""
+
+# The memcached (sidecar) container, caching target access.
+memcached:
+  image:
+    registry: docker.io
+    repository: memcached
+    tag: 1.6.39-alpine3.22
+  # Memory limit (MB).
+  # 128MB gives us 1,000 users, each with 10,000 TA strings?
+  memoryLimitMb: 128
+  resources:
+    limits:
+      cpu: 1
+      memory: 160Mi
+    requests:
+      cpu: 10m
+      memory: 160Mi

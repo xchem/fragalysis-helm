@@ -1,0 +1,141 @@
+---
+suite: services and ingresses
+templates:
+- ingress-auth.yaml
+- ingress-stats.yaml
+- service-auth.yaml
+- service-stats.yaml
+release:
+  namespace: fragalysis
+tests:
+- it: has no ingress or stats service by default
+  templates:
+  - ingress-auth.yaml
+  - ingress-stats.yaml
+  - service-stats.yaml
+  asserts:
+  - hasDocuments:
+      count: 0
+
+- it: always has an auth service
+  template: service-auth.yaml
+  asserts:
+  - equal:
+      path: metadata.name
+      value: auth
+  - equal:
+      path: metadata.namespace
+      value: fragalysis
+  - equal:
+      path: spec.selector
+      value:
+        name: ta-authenticator
+  - equal:
+      path: spec.ports
+      value:
+      - name: auth
+        port: 80
+        targetPort: auth
+
+- it: refuses an unknown ingress class
+  template: ingress-auth.yaml
+  set:
+    ingress.className: haproxy
+    ingress.authHostname: auth.example.com
+  asserts:
+  - failedTemplate:
+      errorPattern: ingress.className must be 'nginx' or 'traefik'
+
+- it: routes the auth hostname with a certificate
+  template: ingress-auth.yaml
+  set:
+    ingress.authHostname: auth.example.com
+  asserts:
+  - equal:
+      path: metadata.name
+      value: taa-auth
+  - equal:
+      path: spec.ingressClassName
+      value: nginx
+  - equal:
+      path: metadata.annotations
+      value:
+        cert-manager.io/cluster-issuer: letsencrypt-nginx-production
+  - equal:
+      path: spec.tls
+      value:
+      - hosts:
+        - auth.example.com
+        secretName: taa-auth-tls
+  - equal:
+      path: spec.rules[0].host
+      value: auth.example.com
+  - equal:
+      path: spec.rules[0].http.paths[0].backend.service
+      value:
+        name: auth
+        port:
+          name: auth
+
+- it: routes the auth hostname without a certificate using traefik
+  template: ingress-auth.yaml
+  set:
+    ingress.authHostname: auth.example.com
+    ingress.className: traefik
+    ingress.certIssuer: ""
+  asserts:
+  - equal:
+      path: spec.ingressClassName
+      value: traefik
+  - notExists:
+      path: metadata.annotations
+  - notExists:
+      path: spec.tls
+
+- it: exposes stats with a stats hostname
+  templates:
+  - ingress-stats.yaml
+  - service-stats.yaml
+  set:
+    ingress.statsHostname: stats.example.com
+  asserts:
+  - hasDocuments:
+      count: 1
+
+- it: has a stats service
+  template: service-stats.yaml
+  set:
+    ingress.statsHostname: stats.example.com
+  asserts:
+  - equal:
+      path: metadata.name
+      value: stats
+  - equal:
+      path: spec.ports
+      value:
+      - name: stats
+        port: 80
+        targetPort: stats
+
+- it: routes the stats hostname
+  template: ingress-stats.yaml
+  set:
+    ingress.statsHostname: stats.example.com
+    ingress.certIssuer: Staging
+  asserts:
+  - equal:
+      path: metadata.name
+      value: taa-stats
+  - equal:
+      path: metadata.annotations
+      value:
+        cert-manager.io/cluster-issuer: letsencrypt-nginx-staging
+  - equal:
+      path: spec.tls[0].secretName
+      value: taa-stats-tls
+  - equal:
+      path: spec.rules[0].http.paths[0].backend.service
+      value:
+        name: stats
+        port:
+          name: stats

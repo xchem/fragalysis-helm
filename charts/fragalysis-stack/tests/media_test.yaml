@@ -1,0 +1,85 @@
+---
+suite: media volume
+templates:
+- pvc-media.yaml
+release:
+  namespace: fragalysis
+tests:
+- it: claims a volume that is kept when the stack is removed
+  asserts:
+  - equal:
+      path: metadata.name
+      value: media
+  - equal:
+      path: metadata.namespace
+      value: fragalysis
+  - equal:
+      path: metadata.annotations["helm.sh/resource-policy"]
+      value: keep
+  - equal:
+      path: spec.accessModes
+      value:
+      - ReadWriteMany
+  - equal:
+      path: spec.resources.requests.storage
+      value: 400Gi
+  - notExists:
+      path: spec.storageClassName
+
+- it: uses a named storage class and access mode
+  set:
+    media.volume.storageClass: efs
+    media.volume.accessMode: ReadWriteOnce
+  asserts:
+  - equal:
+      path: spec.storageClassName
+      value: efs
+  - equal:
+      path: spec.accessModes
+      value:
+      - ReadWriteOnce
+
+- it: is not deployed when the stack is not deployed
+  set:
+    stack.deploy: false
+  asserts:
+  - hasDocuments:
+      count: 0
+
+- it: refuses a pre-existing volume when told to
+  set:
+    media.allowPreExistingVolume: false
+  kubernetesProvider:
+    scheme:
+      v1/PersistentVolumeClaim:
+        gvr:
+          version: v1
+          resource: persistentvolumeclaims
+        namespaced: true
+    objects:
+    - kind: PersistentVolumeClaim
+      apiVersion: v1
+      metadata:
+        name: media
+        namespace: fragalysis
+  asserts:
+  - failedTemplate:
+      errorPattern: The media volume exists but shouldn't
+
+- it: accepts a pre-existing volume by default
+  kubernetesProvider:
+    scheme:
+      v1/PersistentVolumeClaim:
+        gvr:
+          version: v1
+          resource: persistentvolumeclaims
+        namespaced: true
+    objects:
+    - kind: PersistentVolumeClaim
+      apiVersion: v1
+      metadata:
+        name: media
+        namespace: fragalysis
+  asserts:
+  - hasDocuments:
+      count: 1

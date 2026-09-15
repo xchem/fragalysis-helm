@@ -1,0 +1,34 @@
+{{- with .Values.ingress.authHostname }}
+{{- $className := include "ta-authenticator.ingressClassName" $ }}
+---
+kind: Ingress
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: taa-auth
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "ta-authenticator.labels" $ | nindent 4 }}
+  {{- with $.Values.ingress.certIssuer }}
+  annotations:
+    cert-manager.io/cluster-issuer: {{ printf "letsencrypt-%s-%s" $className (lower .) | quote }}
+  {{- end }}
+spec:
+  ingressClassName: {{ $className }}
+  {{- if $.Values.ingress.certIssuer }}
+  tls:
+  - hosts:
+    - {{ . | quote }}
+    secretName: taa-auth-tls
+  {{- end }}
+  rules:
+  - host: {{ . | quote }}
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: auth
+            port:
+              name: auth
+{{- end }}

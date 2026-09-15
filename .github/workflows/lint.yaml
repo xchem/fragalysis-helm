@@ -1,0 +1,38 @@
+---
+name: lint
+
+# Lint and unit-test every chart.
+
+on:
+  push:
+    branches:
+    - main
+  pull_request:
+    branches:
+    - main
+
+jobs:
+  helm:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out the repository
+      uses: actions/checkout@v6
+
+    - name: Install helm
+      uses: azure/setup-helm@v5
+      with:
+        version: v4.1.0
+
+    - name: Install helm-unittest
+      run: >-
+        helm plugin install https://github.com/helm-unittest/helm-unittest.git
+        --version v1.1.2 --verify=false
+
+    - name: Lint
+      run: |
+        helm lint --strict charts/fragalysis-stack \
+          --set stack.image.tag=lint --set graph.hostname=graph
+        helm lint --strict charts/ta-authenticator
+
+    - name: Unit test
+      run: helm unittest charts/*

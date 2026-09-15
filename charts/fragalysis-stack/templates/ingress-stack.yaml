@@ -1,0 +1,49 @@
+{{- $className := .Values.ingress.className }}
+{{- if not (has $className (list "nginx" "traefik")) }}
+{{- fail (printf "ingress.className must be 'nginx' or 'traefik' (got '%s')" $className) }}
+{{- end }}
+{{- /*
+The Ingress is retained when the stack is not deployed.
+Removing it risks regenerating its certificate
+and hitting a Let's Encrypt rate limit.
+*/}}
+{{- with .Values.ingress.hostname }}
+---
+kind: Ingress
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: stack
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "fragalysis-stack.labels" $ | nindent 4 }}
+  {{- if or (eq $className "nginx") $.Values.ingress.certIssuer }}
+  annotations:
+    {{- if eq $className "nginx" }}
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    {{- end }}
+    {{- with $.Values.ingress.certIssuer }}
+    cert-manager.io/cluster-issuer: {{ printf "letsencrypt-%s-%s" $className (lower .) | quote }}
+    {{- end }}
+  {{- end }}
+spec:
+  ingressClassName: {{ $className }}
+  {{- if $.Values.ingress.certIssuer }}
+  tls:
+  - hosts:
+    - {{ . | quote }}
+    secretName: stack-tls
+  {{- end }}
+  rules:
+  - host: {{ . | quote }}
+    http:
+      paths:
+      - path: /
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: stack
+            port:
+              name: http
+{{- end }}

@@ -1,0 +1,20 @@
+{{- if and (not .Values.database.host) .Values.backups.database.enabled }}
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: database-backup
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "fragalysis-stack.labels" . | nindent 4 }}
+spec:
+  accessModes:
+  - ReadWriteOnce
+  {{- /* A blank class uses the cluster default ('' would disable provisioning) */}}
+  {{- with trim .Values.backups.database.volume.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.backups.database.volume.size | quote }}
+{{- end }}

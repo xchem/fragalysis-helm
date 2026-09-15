@@ -1,0 +1,62 @@
+{{- $backups := .Values.backups.database }}
+{{- if and (not .Values.database.host) $backups.enabled $backups.daily.schedule }}
+---
+# CronJob for the 'daily' backups (collected from the hourly backups)
+kind: CronJob
+apiVersion: batch/v1
+metadata:
+  name: postgres-backup-daily
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "fragalysis-stack.labels" . | nindent 4 }}
+spec:
+  schedule: {{ $backups.daily.schedule | quote }}
+  successfulJobsHistoryLimit: 1
+  startingDeadlineSeconds: 180
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            name: postgres-backup
+        spec:
+          serviceAccountName: stack
+          affinity:
+            {{- include "fragalysis-stack.affinityApplication" . | nindent 12 }}
+          {{- with .Values.backups.imagePullSecret }}
+          imagePullSecrets:
+          - name: {{ . }}
+          {{- end }}
+
+          containers:
+          - image: informaticsmatters/sql-backup:{{ $backups.imageTag }}
+            name: postgres-backup
+            imagePullPolicy: IfNotPresent
+            terminationMessagePolicy: FallbackToLogsOnError
+            resources:
+              limits:
+                cpu: 1
+                memory: 512Mi
+              requests:
+                cpu: 100m
+                memory: 512Mi
+            env:
+            - name: BACKUP_TYPE
+              value: daily
+            - name: BACKUP_COUNT
+              value: {{ $backups.daily.count | quote }}
+            - name: BACKUP_PRIOR_TYPE
+              value: hourly
+            - name: BACKUP_PRIOR_COUNT
+              value: {{ $backups.hourly.count | quote }}
+            volumeMounts:
+            - name: backup-data
+              mountPath: /backup
+
+          volumes:
+          - name: backup-data
+            persistentVolumeClaim:
+              claimName: database-backup
+          restartPolicy: Never
+{{- end }}

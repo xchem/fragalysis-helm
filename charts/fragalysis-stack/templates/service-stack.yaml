@@ -1,0 +1,18 @@
+{{- /*
+The service (like the Ingress) is retained when the stack is not deployed
+*/}}
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: stack
+  namespace: {{ .Release.Namespace }}
+  labels:
+    name: stack
+    {{- include "fragalysis-stack.labels" . | nindent 4 }}
+spec:
+  selector:
+    name: stack
+  ports:
+  - name: http
+    port: 80

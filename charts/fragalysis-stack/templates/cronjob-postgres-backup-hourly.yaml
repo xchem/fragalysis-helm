@@ -1,0 +1,123 @@
+{{- if and (not .Values.database.host) .Values.backups.database.enabled }}
+{{- $backups := .Values.backups.database }}
+---
+# CronJob for the 'hourly' backups.
+# Only the hourly backup provides rsync/rclone material.
+# Data is replicated using these tools during the hourly CronJob,
+# not daily, weekly, or monthly.
+kind: CronJob
+apiVersion: batch/v1
+metadata:
+  name: postgres-backup-hourly
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "fragalysis-stack.labels" . | nindent 4 }}
+spec:
+  schedule: {{ $backups.hourly.schedule | quote }}
+  successfulJobsHistoryLimit: 1
+  startingDeadlineSeconds: 180
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            name: postgres-backup
+        spec:
+          serviceAccountName: stack
+          affinity:
+            {{- include "fragalysis-stack.affinityApplication" . | nindent 12 }}
+          {{- with .Values.backups.imagePullSecret }}
+          imagePullSecrets:
+          - name: {{ . }}
+          {{- end }}
+
+          containers:
+          - image: informaticsmatters/sql-backup:{{ $backups.imageTag }}
+            name: postgres-backup
+            imagePullPolicy: IfNotPresent
+            terminationMessagePolicy: FallbackToLogsOnError
+            resources:
+              limits:
+                cpu: 1
+                memory: 512Mi
+              requests:
+                cpu: 100m
+                memory: 512Mi
+            env:
+            - name: BACKUP_TYPE
+              value: hourly
+            - name: BACKUP_COUNT
+              value: {{ $backups.hourly.count | quote }}
+            - name: PGHOST
+              value: database
+            - name: PGUSER
+              value: admin
+            - name: PGADMINPASS
+              valueFrom:
+                secretKeyRef:
+                  name: database
+                  key: root_password
+            {{- if $backups.rsync.enabled }}
+            - name: RSYNC_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: backup-rsync
+                  key: host
+            - name: RSYNC_PATH
+              valueFrom:
+                secretKeyRef:
+                  name: backup-rsync
+                  key: path
+            - name: RSYNC_USER
+              valueFrom:
+                secretKeyRef:
+                  name: backup-rsync
+                  key: user
+            - name: RSYNC_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: backup-rsync
+                  key: pass
+            {{- end }}
+            {{- with $backups.rcloneBucketAndPath }}
+            - name: USE_RCLONE
+              value: "true"
+            - name: USE_RCLONE_BUCKET_AND_PATH
+              value: {{ . | quote }}
+            - name: RCLONE_S3_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: backup-rclone
+                  key: s3_endpoint
+            - name: RCLONE_S3_PROVIDER
+              valueFrom:
+                secretKeyRef:
+                  name: backup-rclone
+                  key: s3_provider
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: backup-rclone
+                  key: s3_access_key_id
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: backup-rclone
+                  key: s3_secret_access_key
+            - name: AWS_DEFAULT_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: backup-rclone
+                  key: s3_default_region
+            {{- end }}
+            volumeMounts:
+            - name: backup-data
+              mountPath: /backup
+
+          volumes:
+          - name: backup-data
+            persistentVolumeClaim:
+              claimName: database-backup
+          restartPolicy: Never
+{{- end }}

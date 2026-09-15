@@ -1,0 +1,381 @@
+---
+# Values for the Fragalysis Stack chart.
+#
+# Everything is deployed into the release namespace. Kubernetes object
+# names are fixed ('stack', 'database', 'redis' ...) because the
+# application and its init containers address one another by those names.
+# Install at most one release of this chart in a namespace.
+#
+# Values marked SENSITIVE should not be committed in plain text.
+# Provide them from an encrypted values file or your CI secrets.
+
+# The stack application --------------------------------------------------------
+
+stack:
+  # Deploy the stack? Set to 'false' to deploy only the database
+  # (e.g. to pre-condition it) or to 'shut down' a deployed stack.
+  # When 'false' the stack, worker, beat, redis and django secret are not
+  # deployed (and are removed on upgrade). The media volume is not deployed
+  # but an existing one is retained.
+  deploy: true
+
+  # The stack image, also used by the worker and beat Pods.
+  # A tag must be provided - there is no sensible default.
+  image:
+    registry: docker.io
+    repository: xchem/fragalysis-stack
+    tag: ""
+    # If blank it's automatic: 'Always' for the 'latest' and 'stable' tags,
+    # 'IfNotPresent' otherwise.
+    pullPolicy: ""
+
+  replicas: 1
+  # Stack concurrency (processes/threads)
+  concurrency: 4
+  resources:
+    limits:
+      cpu: 1
+      memory: 4Gi
+      ephemeral-storage: 100Gi
+    requests:
+      cpu: 1
+      memory: 4Gi
+      ephemeral-storage: 100Gi
+  # The size limit of the emptyDir volume mounted at /tmp
+  tmpVolumeSizeLimit: 110Gi
+
+  # A storage class for a per-replica log volume (mounted at /code/logs).
+  # If blank no log volume is created.
+  logVolumeStorageClass: ""
+
+  # The deployment mode (one of 'production' or 'development')
+  deploymentMode: development
+  # Authenticate uploads? (typically yes, can be 'false' in development mode)
+  authenticateUpload: true
+  # A comma-separated list of forced API error ("infection") names
+  infections: ""
+  # A 'see also' message - issued by the front-end if set.
+  # Typically used to redirect the user to the production stack.
+  seeAlsoMessage: ""
+  # A warning message - issued by the front-end if set.
+  targetWarningMessage: ""
+  # A URL for a prior/legacy stack, passed to the frontend if set.
+  legacyUrl: ""
+  # Start the stack in debug mode? (should be 'false' in production)
+  debug: false
+  # Build the XChem Database? If so the 'xchem' values must be provided.
+  buildXcdb: false
+  # A comma-separated list of Public Target Access Strings.
+  publicTas: ""
+  # Disable the security checks for proposal membership?
+  # Not available when the deploymentMode is 'production'.
+  disableRestrictProposalsToMembership: true
+  # DEBUG: inject proposals for specific users (not for production).
+  # A comma-separated list of "user:project" pairs,
+  # e.g. "user-1:lb32627-66,user2:lb32627-66"
+  restrictedTasUsers: ""
+  # Maximum download concurrency (the task concurrency to reject new
+  # Downloads). Set to 0 to disable this check.
+  maxDownloadConcurrencyPercent: 80
+  # A colon-separated list of service IDs whose status is returned by the
+  # service status API. A full set would be:
+  #   discourse:fragmentation_graph:ispyb:keycloak:squonk
+  enableServiceStatus: fragmentation_graph:ispyb:keycloak
+  # A python logging level string
+  loggingFrameworkRootLevel: INFO
+  # Wait for the graph to be resolvable before starting the stack?
+  waitForGraph: true
+  # The acceptable TAS string format
+  tasRegex: "^(lb\\d{5})(-(\\d+)){0,1}$"
+  tasRegexErrorMsg: >-
+    Must begin "lb" followed by 5 digits, optionally followed by a hyphen and a number.
+  # URL format strings for documentation.
+  # See the backend's settings.py for documentation.
+  documentationUrlFormatStrings:
+    stack: ""
+    frontend: ""
+    backend: ""
+  # The Django API cache
+  cache:
+    enabled: false
+    # If blank the application default is used (typically 28 days)
+    middlewareTimeoutMinutes: ""
+  # The Sentry SDK DSN. If blank sentry is not initialised. SENSITIVE
+  sentryDsn: ""
+  # Deploy a Prometheus ServiceMonitor? (requires the monitoring CRDs)
+  metrics:
+    enabled: false
+
+worker:
+  replicas: 1
+  # Worker concurrency (processes/threads)
+  concurrency: 4
+  resources:
+    limits:
+      cpu: 4
+      memory: 16Gi
+      ephemeral-storage: 100Gi
+    requests:
+      cpu: 4
+      memory: 16Gi
+      ephemeral-storage: 100Gi
+  # The size limit of the emptyDir volume mounted at /tmp
+  tmpVolumeSizeLimit: 110Gi
+
+# Run the celery 'beat' Pod?
+beat:
+  enabled: true
+
+# BusyBox is used for init-containers, allow redirection of its registry.
+busybox:
+  registry: docker.io
+
+# The stack Ingress. If there is no hostname no Ingress is created
+# and the stack is not exposed outside the cluster.
+ingress:
+  # e.g. 'fragalysis.diamond.ac.uk'
+  hostname: ""
+  # One of 'nginx' or 'traefik'. This selects the IngressClass, the
+  # controller-specific annotations and the cert-manager ClusterIssuer name
+  # ('letsencrypt-<className>-<certIssuer>').
+  className: nginx
+  # The cert-manager issuer (e.g. 'production' or 'staging').
+  # If blank there will be no certificate.
+  certIssuer: ""
+
+# The stack's media volume.
+media:
+  volume:
+    # If blank the cluster's default storage class is used.
+    # You should strive to use a named storage class, e.g. 'efs'.
+    storageClass: ""
+    size: 400Gi
+    # ReadWriteOnce may help local deployments (e.g. Docker Desktop)
+    accessMode: ReadWriteMany
+  # Is an existing media volume permitted?
+  # Set to 'false' to refuse to deploy the stack if the volume exists
+  # (used by a production to staging replication).
+  allowPreExistingVolume: true
+
+# The Neo4j graph to connect to.
+graph:
+  # This can be a kubernetes service (e.g. 'graph.graph.svc').
+  # Required unless 'stack.waitForGraph' is 'false'.
+  hostname: ""
+  # SENSITIVE
+  password: ""
+
+# Keycloak OIDC. Environment variables are only set if the secret is set.
+oidc:
+  # SENSITIVE
+  rpClientSecret: ""
+  rpClientId: fragalysis-local
+  # The full URL of the Keycloak realm, e.g.
+  # https://keycloak.xchem-dev.diamond.ac.uk/auth/realms/xchem
+  keycloakRealmUrl: ""
+  renewIdTokenExpiryMinutes: 210
+  # To also log the user out from Keycloak set this to
+  # "fragalysis.views.keycloak_logout"
+  opLogoutUrlMethod: ""
+  # Client IDs (known to Keycloak)
+  asClientId: ""
+  dmClientId: ""
+
+# Squonk2 services, unset by default.
+# These are URLs to the services, i.e. https://example.com/data-manager-api/api
+squonk2:
+  asapiUrl: ""
+  dmapiUrl: ""
+  uiUrl: ""
+  orgOwner: fragalysis
+  # SENSITIVE
+  orgOwnerPassword: ""
+  orgUuid: ""
+  productFlavour: SILVER
+  slug: ""
+  unitBillingDay: 3
+
+# Outbound email. Only configured if 'user' is set.
+# If 'password' is set the user is authenticated, otherwise the user is
+# used as the 'from' address. Blank values use the application's defaults.
+email:
+  user: ""
+  host: ""
+  useTls: ""
+  port: ""
+  # SENSITIVE
+  password: ""
+
+# Third-party service API keys. SENSITIVE
+apiKeys:
+  ibm: ""
+  manifold: ""
+  mcule: ""
+  sendgrid: ""
+
+# The Target Access Authenticator.
+# If the authenticator is installed in the same namespace
+# its service is "http://auth".
+taAuth:
+  service: ""
+  # SENSITIVE
+  queryKey: ""
+
+# The XChem database, used to create the 'xchem' secret.
+# The secret (and the stack's XCHEM_ variables) are only created
+# if the host is set. SENSITIVE
+xchem:
+  host: ""
+  port: ""
+  name: ""
+  user: ""
+  password: ""
+
+# The database -----------------------------------------------------------------
+
+database:
+  # Define a host if a pre-existing (external) database is to be used.
+  # If blank a database (and pgBouncer) is deployed for the stack.
+  # An external database requires you to provide a 'database' secret
+  # with a 'user_password' key.
+  host: ""
+
+  image:
+    registry: docker.io
+    repository: xchem/fragalysis-database
+    tag: 2026.04.1
+  resources:
+    limits:
+      cpu: 500m
+      memory: 1Gi
+    requests:
+      cpu: 100m
+      memory: 400Mi
+
+  volume:
+    # If blank the cluster's default storage class is used.
+    storageClass: ""
+    # Needs at least 400MB, size it accordingly.
+    size: 2Gi
+  # Is an existing database volume permitted?
+  # Set to 'false' (with 'stack.deploy: false') to refuse to deploy if the
+  # volume exists. This prevents consecutive production to staging
+  # replications without first removing the stack's database.
+  allowPreExistingVolume: true
+
+  # The database superuser ('admin') and application user ('fragalysis')
+  # passwords are generated when the 'database' secret is first written.
+
+  # Populate the DB init file?
+  # Typically 'false' when the DB is to be used for recovery.
+  useInitFile: true
+  # Create the initial database user and database (in the init file)?
+  createUsersAndDatabases: true
+  # Configuration of the DB server, written to the postgres-conf ConfigMap.
+  # To change a value you must provide a replacement of the entire file.
+  conf: |
+    listen_addresses = '*'
+    max_connections = 100
+    shared_buffers = 128MB
+    work_mem = 4MB
+
+pgbouncer:
+  # Deploy pgBouncer? (only when the database is deployed by this chart)
+  # When deployed the stack connects to the database through it.
+  enabled: true
+  image:
+    repository: xchem/pgbouncer
+    tag: "1.25.2"
+  defaultPoolSize: 16
+  logConnections: 0
+  logDisconnections: 1
+  maxClientConn: 1000
+  maxDbConnections: 16
+  minPoolSize: 16
+  # During stress-testing of the stack (Apr 26) a concurrent download of
+  # 99 targets resulted in the pgBouncer Pod using no more than 8MB RAM.
+  # pgBouncer is single-threaded, more than 1 core is pointless.
+  resources:
+    limits:
+      cpu: 500m
+      memory: 64Mi
+    requests:
+      cpu: 500m
+      memory: 8Mi
+
+# Redis ------------------------------------------------------------------------
+
+redis:
+  image:
+    repository: redis
+    tag: 7.4.9-alpine3.21
+  # A persistent volume. If disabled persistence is disabled.
+  volume:
+    enabled: false
+    # If blank the cluster's default storage class is used.
+    storageClass: ""
+    size: 1Gi
+  conf:
+    logLevel: notice
+    maxMemory: 2gb
+    # The number of logical databases.
+    # Valid DB indices are 0 .. (databases - 1).
+    databases: 4
+
+# Backups ----------------------------------------------------------------------
+
+backups:
+  # An optional image pull secret for the backup images
+  imagePullSecret: ""
+
+  # S3 credentials used by rclone, to copy database and media backups to a
+  # bucket. The 'backup-rclone' secret is created if either
+  # 'database.rcloneBucketAndPath' or 'media.rcloneBucket' is set. SENSITIVE
+  rclone:
+    s3Endpoint: ""
+    s3Provider: ""
+    s3AccessKeyId: ""
+    s3SecretAccessKey: ""
+    s3DefaultRegion: ""
+
+  # Database backups (only when the database is deployed by this chart).
+  database:
+    enabled: false
+    imageTag: "15.7"
+    volume:
+      # If blank the cluster's default storage class is used.
+      storageClass: ""
+      size: 4Gi
+    # Hourly backups every hour at 51 minutes past the hour
+    hourly:
+      schedule: "51 * * * *"
+      count: 24
+    # Daily backup collection at 00:21 (a blank schedule disables it)
+    daily:
+      schedule: "21 0 * * *"
+      count: 7
+    # Weekly backup collection on Sundays at 00:31 (a blank schedule disables it)
+    weekly:
+      schedule: "31 0 * * 0"
+      count: 4
+    # Monthly backup collection on the 8th of every Month at 00:41
+    # (a blank schedule disables it)
+    monthly:
+      schedule: "41 0 8 * *"
+      count: 12
+    # rsync the (hourly) backups to a central server? SENSITIVE
+    rsync:
+      enabled: false
+      host: ""
+      path: ""
+      user: ""
+      pass: ""
+    # Copy the (hourly) backups to this S3 bucket and path using rclone
+    rcloneBucketAndPath: ""
+
+  # Daily media backups, copied to an S3 bucket using rclone.
+  media:
+    enabled: false
+    imageTag: "3.1.1"
+    rcloneBucket: ""
+    schedule: "4 3 * * *"

@@ -1,0 +1,13 @@
+{{- if not .Values.database.host }}
+---
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: postgres-conf
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "fragalysis-stack.labels" . | nindent 4 }}
+data:
+  postgresql.conf: |
+    {{- .Values.database.conf | trimSuffix "\n" | nindent 4 }}
+{{- end }}

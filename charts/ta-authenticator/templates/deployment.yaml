@@ -1,0 +1,101 @@
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: ta-authenticator
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ta-authenticator.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      name: ta-authenticator
+  template:
+    metadata:
+      labels:
+        name: ta-authenticator
+    spec:
+      serviceAccountName: ta-authenticator
+
+      containers:
+      - name: memcached
+        image: {{ printf "%s/%s:%s" .Values.memcached.image.registry .Values.memcached.image.repository .Values.memcached.image.tag | quote }}
+        imagePullPolicy: IfNotPresent
+        args:
+        - -v
+        - --memory-limit={{ .Values.memcached.memoryLimitMb }}
+        ports:
+        - containerPort: 11211
+        resources:
+          {{- toYaml .Values.memcached.resources | nindent 10 }}
+
+      - name: ta-authenticator
+        image: {{ printf "%s/%s:%s" .Values.image.registry .Values.image.repository (include "ta-authenticator.imageTag" .) | quote }}
+        imagePullPolicy: {{ include "ta-authenticator.imagePullPolicy" . }}
+        terminationMessagePolicy: FallbackToLogsOnError
+        env:
+        {{- if .Values.queryKey }}
+        - name: TAA_QUERY_KEY
+          valueFrom:
+            secretKeyRef:
+              name: keys
+              key: query_key
+        {{- end }}
+        {{- if .Values.statsKey }}
+        - name: TAA_STATS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: keys
+              key: stats_key
+        {{- end }}
+        - name: TAA_ISPYB_HOST
+          value: {{ .Values.ispyb.host | quote }}
+        - name: TAA_ISPYB_PORT
+          value: {{ .Values.ispyb.port | quote }}
+        - name: TAA_ISPYB_USER
+          value: {{ .Values.ispyb.user | quote }}
+        - name: TAA_ISPYB_PASSWORD
+          value: {{ .Values.ispyb.password | quote }}
+        - name: TAA_SSH_HOST
+          value: {{ .Values.ssh.host | quote }}
+        - name: TAA_SSH_USER
+          value: {{ .Values.ssh.user | quote }}
+        {{- if .Values.ssh.privateKey }}
+        # A private key's been defined,
+        # so it will be in a 'well known location' in the container.
+        - name: TAA_SSH_PRIVATE_KEY_FILENAME
+          value: /home/taa/fragalysis-stack-ssh-key
+        {{- end }}
+        - name: WORKERS
+          value: {{ .Values.workers | quote }}
+        ports:
+        - containerPort: 8080
+          name: auth
+        - containerPort: 8081
+          name: stats
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        livenessProbe:
+          tcpSocket:
+            port: auth
+          initialDelaySeconds: 20
+          timeoutSeconds: 4
+          periodSeconds: 10
+          failureThreshold: 5
+          successThreshold: 1
+        {{- if .Values.ssh.privateKey }}
+        volumeMounts:
+        - name: ssh-key
+          mountPath: /home/taa/fragalysis-stack-ssh-key
+          subPath: fragalysis-stack-ssh-key
+        {{- end }}
+
+      {{- if .Values.ssh.privateKey }}
+      volumes:
+      - name: ssh-key
+        secret:
+          secretName: ssh-key
+      {{- end }}
