@@ -2,6 +2,23 @@ apiVersion: v1
 entries:
   fragalysis-stack:
   - apiVersion: v2
+    created: "2026-09-16T11:43:14.3950142Z"
+    description: The Fragalysis Stack - a Django web application with its Celery worker
+      and beat Pods, PostgreSQL, pgBouncer, Redis and optional backups
+    digest: 6421d9b913e0e5bf91011998e0e3eefeab3488b6822e7535e669d09606407c87
+    home: https://github.com/xchem/fragalysis-helm
+    keywords:
+    - fragalysis
+    - xchem
+    name: fragalysis-stack
+    sources:
+    - https://github.com/xchem/fragalysis-helm
+    - https://github.com/xchem/fragalysis-stack
+    type: application
+    urls:
+    - https://github.com/xchem/fragalysis-helm/releases/download/fragalysis-stack-0.1.1/fragalysis-stack-0.1.1.tgz
+    version: 0.1.1
+  - apiVersion: v2
     created: "2026-09-15T10:21:36.925288302Z"
     description: The Fragalysis Stack - a Django web application with its Celery worker
       and beat Pods, PostgreSQL, pgBouncer, Redis and optional backups
@@ -21,6 +38,24 @@ entries:
   ta-authenticator:
   - apiVersion: v2
     appVersion: 1.4.4
+    created: "2026-09-16T11:43:14.631754479Z"
+    description: The Fragalysis (ISPyB) Target Access Authenticator - a service that
+      resolves a user's target access (proposals) for the Fragalysis Stack
+    digest: e3436d15dc0295fd69af0af5031bc400a0ba6c7fe1047e8a0fa76d230c16b3ef
+    home: https://github.com/xchem/fragalysis-helm
+    keywords:
+    - fragalysis
+    - xchem
+    name: ta-authenticator
+    sources:
+    - https://github.com/xchem/fragalysis-helm
+    - https://github.com/xchem/fragalysis-ispyb-target-access-authenticator
+    type: application
+    urls:
+    - https://github.com/xchem/fragalysis-helm/releases/download/ta-authenticator-0.2.0/ta-authenticator-0.2.0.tgz
+    version: 0.2.0
+  - apiVersion: v2
+    appVersion: 1.4.4
     created: "2026-09-15T10:21:37.154860839Z"
     description: The Fragalysis (ISPyB) Target Access Authenticator - a service that
       resolves a user's target access (proposals) for the Fragalysis Stack
@@ -37,4 +72,4 @@ entries:
     urls:
     - https://github.com/xchem/fragalysis-helm/releases/download/ta-authenticator-0.1.0/ta-authenticator-0.1.0.tgz
     version: 0.1.0
-generated: "2026-09-15T10:21:37.154865989Z"
+generated: "2026-09-16T11:43:14.631761389Z"
