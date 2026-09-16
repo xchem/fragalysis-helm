@@ -23,6 +23,12 @@ tests:
       path: spec.template.spec.serviceAccountName
       value: ta-authenticator
 
+- it: uses authenticator 1.5.1 by default
+  asserts:
+  - equal:
+      path: spec.template.spec.containers[1].image
+      value: docker.io/xchem/fragalysis-ispyb-target-access-authenticator:1.5.1
+
 - it: uses the chart's appVersion as the default image tag
   chart:
     appVersion: 9.8.7
@@ -63,7 +69,7 @@ tests:
       value: memcached
   - equal:
       path: spec.template.spec.containers[0].image
-      value: docker.io/memcached:1.6.39-alpine3.22
+      value: docker.io/memcached:1.6.45-alpine3.24
   - equal:
       path: spec.template.spec.containers[0].args
       value:
