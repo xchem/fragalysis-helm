@@ -5,7 +5,7 @@ description: >-
   The Fragalysis Stack - a Django web application with its Celery worker
   and beat Pods, PostgreSQL, pgBouncer, Redis and optional backups
 type: application
-version: 0.1.0
+version: 0.1.1
 home: https://github.com/xchem/fragalysis-helm
 sources:
 - https://github.com/xchem/fragalysis-helm

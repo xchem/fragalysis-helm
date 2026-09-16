@@ -49,6 +49,9 @@ taAuth:
   queryKey: <the authenticator's queryKey>
 ```
 
+If the authenticator has no `queryKey` its query endpoint is not secured
+and the stack does not need a `taAuth.queryKey`.
+
 The stack chart requires `stack.image.tag` and (unless
 `stack.waitForGraph` is `false`) `graph.hostname`.
 

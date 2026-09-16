@@ -73,6 +73,15 @@ tests:
       path: spec.template.spec.containers[0].resources.limits.memory
       value: 160Mi
 
+- it: requests and limits 512Mi of authenticator memory by default
+  asserts:
+  - equal:
+      path: spec.template.spec.containers[1].resources.requests.memory
+      value: 512Mi
+  - equal:
+      path: spec.template.spec.containers[1].resources.limits.memory
+      value: 512Mi
+
 - it: sets the ISPyB environment
   set:
     ispyb.host: ispyb.example.com

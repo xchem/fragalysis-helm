@@ -1,8 +1,13 @@
 The Target Access Authenticator has been deployed to the '{{ .Release.Namespace }}' namespace.
 
 A Fragalysis Stack in the same namespace can use it by setting
-its 'taAuth.service' value to "http://auth" (and 'taAuth.queryKey'
+its 'taAuth.service' value to "http://auth"
+{{- if .Values.queryKey }} (and 'taAuth.queryKey'
 to this authenticator's 'queryKey').
+{{- else }}.
+This authenticator has no 'queryKey', so the stack does not need
+a 'taAuth.queryKey' to use it.
+{{- end }}
 {{- with .Values.ingress.authHostname }}
 
 The authenticator is exposed at {{ ternary "https" "http" (not (empty $.Values.ingress.certIssuer)) }}://{{ . }}

@@ -218,7 +218,8 @@ apiKeys:
 # its service is "http://auth".
 taAuth:
   service: ""
-  # SENSITIVE
+  # The authenticator's 'queryKey'.
+  # If the authenticator has no 'queryKey' this is not needed. SENSITIVE
   queryKey: ""
 
 # The XChem database, used to create the 'xchem' secret.
