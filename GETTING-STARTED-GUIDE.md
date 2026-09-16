@@ -10,37 +10,48 @@ Install the authenticator first.
     access to it.
 
 ## The authenticator
-Minimal values we need, in the `values-argus-taa.yaml` file, are: -
+An example illustrating the values we need can be found in
+`values-argus-taa.example.yaml`. The file can't be used directly,
+you'll need to provide values to replace the "SET-ME" values in it.
 
-```yaml
----
-# We need to provide the version of the authenticator.
-# There is a default but it's better to check the source repository
-# to select the version that you need.
-image:
-  tag: "1.5.1"
-# The ISPyB authenticator at Diamond will need ISPyB and SSH credentials
-# that allow it to access your chosen underlying ISPyB server.
-# Get password and privateKey values from your system administrator.
-ispyb:
-  host: ispybdbproxy.diamond.ac.uk
-  port: 4306
-  user: ispyb-user
-  password: password1234
-ssh:
-  host: ssh.diamond.ac.uk
-  user: fragalysis-user
-  privateKey: |
-    -----BEGIN OPENSSH PRIVATE KEY-----
-    b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAABlwAAAAdzc2gtcn
-    ...
-    -----END OPENSSH PRIVATE KEY-----
-```
-
-With values set we can simply run Helm for the `xchem/ta-authenticator`
+With _real_ values set we can simply run Helm for the `xchem/ta-authenticator`
 as described in the README.
 
-Once installed you should find an `ssh-key` **Secret** and a running **Pod**
+Once installed you should find an `ssh-key` **Secret** and one running **Pod**
 managed by the `ta-authenticator` **Deployment**.
 
 ## The stack
+To deploy a viable stack you'll need to provide a significantly greater number
+of variables - it's a complex application after all. Here's an example setting
+the smallest number of variables. All you need to do is: -
+
+1.  Setup a hostname that will be routed to the application ingress and then set
+    `ingress -> hostname`. We will also need to understand how certificates are
+    generated. In our cluster we use **nginx** and the standard (?) Kubernetes
+    **CertManager**. The Ingress definitions rely on named Cluster Issuer records
+    that will be different to the ones we use.
+2.  With a hostname allocated we then need to provide `oidc` (Keycloak) client
+    information (obtained from Diamond in our case) by defining values for
+    `oidc -> rpClientSecret` and `oidc -> rpClientId`.
+
+An example illustrating the values we need can be found in
+`values-argus-stack.example.yaml`. The file can't be used directly,
+you'll need to provide values to replace the "SET-ME" values in it.
+
+>   The media volume in the example is artificially small to allow an
+    installation test. Before deploying "for real" you must set this to `400Gi`
+    or larger.
+
+Because you might want to change the stack version at regular intervals
+we name the version on the command-line, as illustrated in the README
+for the `xchem/ta-authenticator` chart.
+
+With _real_ values set, just run the helm command for the `xchem/fragalysis-stack`
+shown in the README.
+
+Installation from "cold" will take several minutes before all the Pods reach a
+running state. Once they do you should find several running **Pods**: a `database`,
+`stack`, and `worker` driven by **StatefulSets**, `redis`, `pgbouncer`, and `beat`
+**Pods** driven my corresponding **Deployments**.
+
+At the time of writing the stack consists of 6 Pods.
