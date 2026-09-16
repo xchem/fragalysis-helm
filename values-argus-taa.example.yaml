@@ -1,6 +1,5 @@
 ---
-# We need to provide the version of the authenticator.
-# There is no default for it, and 1.5.0 is currently the latest release.
+# Provide a suitable version of the authenticator.
 # Always check the source repository to see if a more recent release exists.
 image:
   tag: "1.5.1"

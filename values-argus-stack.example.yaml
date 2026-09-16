@@ -12,7 +12,7 @@ ingress:
   # The hostname for the stack's Ingress.
   # The stack Pod must be the recipient of traffic arriving here.
   hostname: SET-ME
-  # We assume there is a custer-wide cert-manager ClusterIssuer
+  # We assume there is a cluster-wide cert-manager ClusterIssuer
   # named 'letsencrypt-nginx-<certIssuer>'.
   certIssuer: production
 
@@ -29,10 +29,15 @@ media:
 # Before anyone can login to the stack
 # an OIDC (Keycloak) server must be available.
 oidc:
-  # The CLient ID and secret will be assigned by Diamond
+  # The Client ID and secret will be assigned by Diamond
   # once an 'ingress->hostname' is known.
   rpClientSecret: SET-ME
   rpClientId: SET-ME
   # The full URL of the Keycloak realm.
   # In Diamond this is likely to be "https://identity.diamond.ac.uk/realms/dls"
   keycloakRealmUrl: https://identity.diamond.ac.uk/realms/dls
+
+# The service name of the installed Target-Access authenticator.
+# If you've installed it in the same Namespace as the stack this will be 'http://auth'.
+taAuth:
+  service: http://auth

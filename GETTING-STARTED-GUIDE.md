@@ -42,16 +42,15 @@ you'll need to provide values to replace the "SET-ME" values in it.
     installation test. Before deploying "for real" you must set this to `400Gi`
     or larger.
 
-Because you might want to change the stack version at regular intervals
-we name the version on the command-line, as illustrated in the README
-for the `xchem/ta-authenticator` chart.
-
 With _real_ values set, just run the helm command for the `xchem/fragalysis-stack`
 shown in the README.
+
+>   Because you might want to change the stack version at regular intervals
+    we name the version on the command-line for the stack.
 
 Installation from "cold" will take several minutes before all the Pods reach a
 running state. Once they do you should find several running **Pods**: a `database`,
 `stack`, and `worker` driven by **StatefulSets**, `redis`, `pgbouncer`, and `beat`
-**Pods** driven my corresponding **Deployments**.
+**Pods** driven by corresponding **Deployments**.
 
 At the time of writing the stack consists of 6 Pods.
