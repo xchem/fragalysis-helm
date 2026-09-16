@@ -1,0 +1,43 @@
+---
+stack:
+  deploymentMode: production
+  disableRestrictProposalsToMembership: false
+  # If you want to provide access to the 'legacy' Fragalysis Stack,
+  # deployed elsewhere, provide its URL here.
+  legacyUrl: https://fragalysis-legacy.xchem.diamond.ac.uk
+  # For this experiment we do not rely on a neo4j graph.
+  waitForGraph: false
+
+ingress:
+  # The hostname for the stack's Ingress.
+  # The stack Pod must be the recipient of traffic arriving here.
+  hostname: SET-ME
+  # We assume there is a cluster-wide cert-manager ClusterIssuer
+  # named 'letsencrypt-nginx-<certIssuer>'.
+  certIssuer: production
+
+# The stack media volume, mounted into multiple Pods (i.e. needs to be RWX).
+# It is also very large. Anything less than 400Gi is unlikely to be sufficient
+# for a production deployment.
+media:
+  volume:
+    # If blank the cluster's default storage class is used.
+    # You should strive to use a named storage class, e.g. 'efs'.
+    storageClass: "nfs"
+    size: 4Gi
+
+# Before anyone can login to the stack
+# an OIDC (Keycloak) server must be available.
+oidc:
+  # The Client ID and secret will be assigned by Diamond
+  # once an 'ingress->hostname' is known.
+  rpClientSecret: SET-ME
+  rpClientId: SET-ME
+  # The full URL of the Keycloak realm.
+  # In Diamond this is likely to be "https://identity.diamond.ac.uk/realms/dls"
+  keycloakRealmUrl: https://identity.diamond.ac.uk/realms/dls
+
+# The service name of the installed Target-Access authenticator.
+# If you've installed it in the same Namespace as the stack this will be 'http://auth'.
+taAuth:
+  service: http://auth

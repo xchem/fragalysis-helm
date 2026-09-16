@@ -1,0 +1,19 @@
+---
+# Provide a suitable version of the authenticator.
+# Always check the source repository to see if a more recent release exists.
+image:
+  tag: "1.5.1"
+# The ISPyB database connection
+ispyb:
+  host: ispybdbproxy.diamond.ac.uk
+  port: 4306
+  user: SET-ME
+  password: SET-ME
+# The Diamond SSH connection
+ssh:
+  host: ssh.diamond.ac.uk
+  user: SET-ME
+  # An (optional) private key, the key itself (not a path).
+  # If set it is mounted into the container at a 'well known location'.
+  privateKey: |
+    SET-ME
