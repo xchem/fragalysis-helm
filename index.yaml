@@ -37,6 +37,24 @@ entries:
     version: 0.1.0
   ta-authenticator:
   - apiVersion: v2
+    appVersion: 1.5.1
+    created: "2026-09-16T13:28:48.614471456Z"
+    description: The Fragalysis (ISPyB) Target Access Authenticator - a service that
+      resolves a user's target access (proposals) for the Fragalysis Stack
+    digest: fc5d2a1567df62ba384465e19a258b54a200b2571eef6953f8d4bf08dcfdcd23
+    home: https://github.com/xchem/fragalysis-helm
+    keywords:
+    - fragalysis
+    - xchem
+    name: ta-authenticator
+    sources:
+    - https://github.com/xchem/fragalysis-helm
+    - https://github.com/xchem/fragalysis-ispyb-target-access-authenticator
+    type: application
+    urls:
+    - https://github.com/xchem/fragalysis-helm/releases/download/ta-authenticator-0.2.1/ta-authenticator-0.2.1.tgz
+    version: 0.2.1
+  - apiVersion: v2
     appVersion: 1.4.4
     created: "2026-09-16T11:43:14.631754479Z"
     description: The Fragalysis (ISPyB) Target Access Authenticator - a service that
@@ -72,4 +90,4 @@ entries:
     urls:
     - https://github.com/xchem/fragalysis-helm/releases/download/ta-authenticator-0.1.0/ta-authenticator-0.1.0.tgz
     version: 0.1.0
-generated: "2026-09-16T11:43:14.631761389Z"
+generated: "2026-09-16T13:28:48.614487486Z"
