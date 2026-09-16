@@ -18,7 +18,7 @@ Minimal values we need, in the `values-argus-taa.yaml` file, are: -
 # There is a default but it's better to check the source repository
 # to select the version that you need.
 image:
-  tag: "1.5.0"
+  tag: "1.5.1"
 # The ISPyB authenticator at Diamond will need ISPyB and SSH credentials
 # that allow it to access your chosen underlying ISPyB server.
 # Get password and privateKey values from your system administrator.
