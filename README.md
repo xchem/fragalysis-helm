@@ -30,16 +30,31 @@ the authenticator at `http://auth`: -
 
 ```bash
 helm upgrade --install ta-authenticator xchem/ta-authenticator \
+  --version 1.0.0 \
   --namespace argus -f values-argus-taa.yaml --wait
 
 helm upgrade --install fragalysis-stack xchem/fragalysis-stack \
+  --version 1.0.0 \
   --namespace argus -f values-argus-stack.yaml \
   --set stack.image.tag=2026.09.1 \
   --wait --timeout 10m
 ```
 
+Each chart is versioned independently. `--version` selects the chart
+version. Without it Helm uses the newest version found by the last
+`helm repo update`, so pin it for production installations. To list the
+published versions: -
+
+```bash
+helm search repo xchem --versions
+```
+
+The chart version is not the application version. The stack's image is
+set with `stack.image.tag`, and the authenticator's image defaults to its
+chart's `appVersion` (unless `image.tag` is set).
+
 From a clone of this repository use `charts/<chart>` in place of
-`xchem/<chart>`.
+`xchem/<chart>` (and omit `--version`).
 
 In the stack's values, point it at the authenticator: -
 
@@ -211,6 +226,8 @@ has not been released before. It creates a GitHub release (and tag) named
 `<chart>-<version>` and updates the repository index on the `gh-pages`
 branch. To release a chart, bump its `version` (semver, no `v` prefix) in
 the pull request that changes it.
+Update the chart's `--version` in the [Installing](#installing) commands
+at the same time.
 
 ## License
 
