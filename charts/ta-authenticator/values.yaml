@@ -25,13 +25,15 @@ workers: 1
 resources:
   limits:
     cpu: 1
-    memory: 128Mi
+    memory: 512Mi
   requests:
     cpu: 10m
-    memory: 128Mi
+    memory: 512Mi
 
 # The key that secures the authenticator (query) endpoint.
-# It must match the stack's 'taAuth.queryKey'. SENSITIVE
+# It must match the stack's 'taAuth.queryKey'.
+# If blank the endpoint is not secured, and the stack does not need
+# a 'taAuth.queryKey' to use the authenticator. SENSITIVE
 queryKey: ""
 # The key that secures the stats endpoint. SENSITIVE
 statsKey: ""
